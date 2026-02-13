@@ -29,6 +29,11 @@ def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
         agentNotes=session.agentNotes or "Scammer engaged successfully"
     )
     
+    # Print payload for debugging
+    import json
+    print(f"📦 Sending Callback Payload for {session.sessionId}:")
+    print(json.dumps(payload.model_dump(), indent=2))
+
     try:
         # Send POST request to GUVI endpoint
         response = requests.post(
@@ -45,7 +50,8 @@ def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
             print(f"✅ Callback sent successfully for session {session.sessionId}")
             return True, None
         else:
-            error_msg = f"Callback failed with status {response.status_code}: {response.text}"
+            print(f"❌ Callback Response: {response.text}")
+            error_msg = f"Callback failed with status {response.status_code}"
             print(f"❌ {error_msg}")
             return False, error_msg
             

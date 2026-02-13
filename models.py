@@ -27,14 +27,6 @@ class HoneypotRequest(BaseModel):
     metadata: Metadata
 
 
-class HoneypotResponse(BaseModel):
-    """Response model for /api/honeypot endpoint"""
-    status: Literal["success", "error"]
-    reply: str
-    scamDetected: bool
-    sessionId: str
-
-
 class ExtractedIntelligence(BaseModel):
     """Structure for extracted scam intelligence"""
     bankAccounts: List[str] = Field(default_factory=list)
@@ -42,6 +34,15 @@ class ExtractedIntelligence(BaseModel):
     phishingLinks: List[str] = Field(default_factory=list)
     phoneNumbers: List[str] = Field(default_factory=list)
     suspiciousKeywords: List[str] = Field(default_factory=list)
+
+
+class HoneypotResponse(BaseModel):
+    """Response model for /api/honeypot endpoint"""
+    status: Literal["success", "error"]
+    reply: str
+    scamDetected: bool
+    sessionId: str
+    intelligence: ExtractedIntelligence = Field(default_factory=ExtractedIntelligence)
 
 
 class CallbackPayload(BaseModel):

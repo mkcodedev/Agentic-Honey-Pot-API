@@ -96,65 +96,71 @@ async def honeypot_endpoint(
         # Detect if message is a scam
         scam_detected, keywords = is_scam(request.message, full_history)
         
-        # Update session with scam detection status
-        if scam_detected:
-            session_manager.update_session(
-                request.sessionId,
-                scam_detected=True
-            )
+        # Extract intelligence from message first so agent knows what we have
+        new_intelligence = extract_intelligence_from_message(request.message)
         
-        # Generate agent response
-        if scam_detected or session.scamDetected:
-            # Use AI agent to generate human-like response
-            agent_reply = generate_agent_response(request.message, full_history)
-            
-            # Extract intelligence from scammer's message
-            intelligence = extract_intelligence_from_message(request.message)
-            
-            # Update session with new message and extracted intelligence
-            session_manager.update_session(
-                request.sessionId,
-                new_message=request.message,
-                scam_detected=True,
-                intelligence=intelligence,
-                agent_notes=f"Keywords detected: {', '.join(keywords[:5])}" if keywords else None
-            )
-            
-            # Add agent's response to session history
-            from models import Message
-            agent_message = Message(
-                sender="user",
-                text=agent_reply,
-                timestamp=request.message.timestamp + 1
-            )
-            session_manager.update_session(
-                request.sessionId,
-                new_message=agent_message
-            )
-            
-            # Check if callback should be sent
+        # Update session with new data immediately
+        session = session_manager.update_session(
+            request.sessionId,
+            new_message=request.message,
+            scam_detected=scam_detected or session.scamDetected,
+            intelligence=new_intelligence,
+            agent_notes=f"Keywords detected: {', '.join(keywords[:5])}" if keywords else None
+        )
+        
+        # Use AI agent to generate response (now aware of collected intel)
+        # Convert Pydantic model to dict for the agent function
+        current_intel_dict = session.extractedIntelligence.model_dump()
+        agent_data = generate_agent_response(request.message, full_history, current_intel_dict)
+        
+        agent_reply = agent_data.get("reply", "I am confused.")
+        agent_scam_detected = agent_data.get("scamDetected", False)
+        agent_intel = agent_data.get("intelligence", {})
+        agent_notes = agent_data.get("agentNotes", "")
+
+        # Merge AI-extracted intelligence with regex intelligence
+        from extraction import ExtractedIntelligence
+        # Convert dict to Pydantic model for merging
+        ai_intel_model = ExtractedIntelligence(**agent_intel) if agent_intel else ExtractedIntelligence()
+        
+        # Merge function (simple union for lists)
+        for field in ["bankAccounts", "upiIds", "phishingLinks", "phoneNumbers", "suspiciousKeywords"]:
+            current_list = getattr(new_intelligence, field)
+            ai_list = getattr(ai_intel_model, field)
+            setattr(new_intelligence, field, list(set(current_list + ai_list)))
+
+        # Update session AGAIN with AI insights
+        session = session_manager.update_session(
+            request.sessionId,
+            scam_detected=scam_detected or session.scamDetected or agent_scam_detected,
+            intelligence=new_intelligence,
+            agent_notes=agent_notes
+        )
+        
+        # Add agent's response to session history
+        from models import Message
+        agent_message = Message(
+            sender="user",
+            text=agent_reply,
+            timestamp=request.message.timestamp + 1000
+        )
+        session_manager.update_session(
+            request.sessionId,
+            new_message=agent_message
+        )
+        
+        # Check if callback should be sent (only if scam confirmed)
+        if session.scamDetected:
             try_send_callback(session, session_manager)
-            
-            # Return response
-            return HoneypotResponse(
-                status="success",
-                reply=agent_reply,
-                scamDetected=True,
-                sessionId=request.sessionId
-            )
-        else:
-            # Not a scam - simple acknowledgment
-            session_manager.update_session(
-                request.sessionId,
-                new_message=request.message
-            )
-            
-            return HoneypotResponse(
-                status="success",
-                reply="Thank you for your message.",
-                scamDetected=False,
-                sessionId=request.sessionId
-            )
+        
+        # Return response
+        return HoneypotResponse(
+            status="success",
+            reply=agent_reply,
+            scamDetected=session.scamDetected,
+            intelligence=new_intelligence.model_dump(),
+            sessionId=request.sessionId
+        )
             
     except Exception as e:
         # Log error and return error response

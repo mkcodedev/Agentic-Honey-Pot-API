@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Honey-Pot | Secure Terminal</title>
+    <style>
+        :root {
+            --bg-dark: #0d1117;
+            --bg-card: #161b22;
+            --border: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent: #238636;
+            --accent-hover: #2ea043;
+            --user-msg: #1f6feb;
+            --agent-msg: #21262d;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background-color: #010409;
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .brand {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #f0f6fc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .session-info {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        .reset-btn {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .reset-btn:hover {
+            background-color: #21262d;
+        }
+
+        /* Main Chat Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .chat-container {
+            flex: 1;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .message.scammer {
+            align-self: flex-end;
+            background-color: var(--user-msg);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.agent {
+            align-self: flex-start;
+            background-color: var(--agent-msg);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 2px;
+        }
+
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            background-color: var(--bg-dark);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--user-msg);
+        }
+
+        button.send-btn {
+            background-color: var(--accent);
+            border: none;
+            color: white;
+            padding: 0 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button.send-btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* Right Panel (Intelligence) */
+        .right-panel {
+            width: 320px;
+            background-color: var(--bg-dark);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: #f0f6fc;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .status-scam {
+            color: #ff4d4d;
+            font-weight: bold;
+            display: none;
+        }
+
+        .intel-item {
+            margin-bottom: 12px;
+        }
+
+        .intel-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .intel-value {
+            font-family: monospace;
+            background-color: #0d1117;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="brand">
+            <span>🔒 Agentic Honey-Pot</span>
+        </div>
+        <div class="session-info">
+            <div style="color: var(--text-secondary); font-size: 0.8rem;">SESSION ID</div>
+            <div id="sessionId" style="font-family: monospace; margin-top: 4px;">Loading...</div>
+        </div>
+        <button class="reset-btn" onclick="resetSession()">🔄 New Session</button>
+
+        <div style="margin-top: auto; color: var(--text-secondary); font-size: 0.8rem;">
+            <div>Backend: <span style="color: #238636;">Online</span></div>
+            <div>Version: 1.0.4</div>
+        </div>
+    </div>
+
+    <!-- Main Chat -->
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="chat-header">
+                <span>Secure Terminal</span>
+                <span id="scamAlert" class="status-scam">🚨 SCAM DETECTED</span>
+            </div>
+            <div class="messages" id="messages">
+                <!-- Messages will appear here -->
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px; opacity: 0.5;">
+                    <h2>...</h2>
+                    <p>Waiting for incoming connection...</p>
+                </div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="Simulate scammer message..."
+                    onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+        <div class="card">
+            <h3>📊 Intelligence Extracted</h3>
+            <div id="intelContainer">
+                <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                    No intelligence gathered yet.
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📈 Intelligence Stats</h3>
+            <canvas id="intelChart" height="200"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>☁️ Keyword Cloud</h3>
+            <div id="wordCloud" style="width: 100%; height: 200px; background-color: #0d1117; border-radius: 4px;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Word Cloud (using simple HTML method for stability without complex D3 deps) -->
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:8000/api/honeypot';
+        const API_KEY = 'sk_honeypot_live_a8f92c3e4b5d6789xyz'; // Hardcoded for demo simplicity
+        let sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+        let conversationHistory = [];
+        let extractedIntel = {
+            bankAccounts: [],
+            upiIds: [],
+            phishingLinks: [],
+            phoneNumbers: [],
+            suspiciousKeywords: []
+        };
+        let intelChart = null;
+
+        // Initialize
+        document.getElementById('sessionId').innerText = sessionId;
+        initChart();
+
+        function resetSession() {
+            sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('sessionId').innerText = sessionId;
+            conversationHistory = [];
+            document.getElementById('messages').innerHTML = `
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 100px; opacity: 0.5;">
+                    <h2>...</h2>
+                    <p>Session Reset. Waiting for connection...</p>
+                </div>`;
+            document.getElementById('scamAlert').style.display = 'none';
+            extractedIntel = { bankAccounts: [], upiIds: [], phishingLinks: [], phoneNumbers: [], suspiciousKeywords: [] };
+            updateIntelDisplay();
+            updateVisualizations();
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Clear input
+            input.value = '';
+
+            // Remove placeholder if it exists
+            const messagesDiv = document.getElementById('messages');
+            if (messagesDiv.querySelector('h2')) messagesDiv.innerHTML = '';
+
+            // Add User Message
+            appendMessage('scammer', text);
+
+            // Prepare Payload
+            const timestamp = Date.now();
+            const messagePayload = {
+                sender: 'scammer',
+                text: text,
+                timestamp: timestamp
+            };
+
+            const payload = {
+                sessionId: sessionId,
+                message: messagePayload,
+                conversationHistory: conversationHistory,
+                metadata: { channel: 'Chat', language: 'English', locale: 'IN' }
+            };
+
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                // Show typing indicator
+                const typingId = 'typing-' + Date.now();
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'message agent';
+                typingDiv.id = typingId;
+                typingDiv.innerText = '👴Target is typing...';
+                messagesDiv.appendChild(typingDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                // Remove typing indicator
+                const typingElement = document.getElementById(typingId);
+                if (typingElement) typingElement.remove();
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Update History
+                    conversationHistory.push(messagePayload);
+                    conversationHistory.push({
+                        sender: 'user', // Agent is 'user'/victim in backend logic
+                        text: data.reply,
+                        timestamp: Date.now()
+                    });
+
+                    // Add Agent Reply
+                    appendMessage('agent', '👴 Target: ' + data.reply);
+
+                    // Update Scam Status
+                    if (data.scamDetected) {
+                        document.getElementById('scamAlert').style.display = 'block';
+                        document.getElementById('scamAlert').innerText = '🚨 SCAM DETECTED - COLLECTING INTEL';
+                    }
+
+                    // Update Intelligence
+                    if (data.intelligence) {
+                        mergeIntelligence(data.intelligence);
+                        updateIntelDisplay();
+                        updateVisualizations();
+                    }
+                } else {
+                    appendMessage('agent', 'System Error: ' + JSON.stringify(data));
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                const typingElement = document.getElementById(typingId);
+                if (typingElement) typingElement.remove();
+                appendMessage('agent', 'Connection Error: Is the backend running?');
+            }
+        }
+
+        function appendMessage(sender, text) {
+            const messagesDiv = document.getElementById('messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            // Add label based on sender
+            if (sender === 'scammer' && !text.startsWith('🕵️')) {
+                msgDiv.innerText = '🕵️ Scammer: ' + text;
+            } else {
+                msgDiv.innerText = text;
+            }
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function mergeIntelligence(newIntel) {
+            for (const key in newIntel) {
+                if (extractedIntel[key] && newIntel[key]) {
+                    // Merge arrays and dedup
+                    extractedIntel[key] = [...new Set([...extractedIntel[key], ...newIntel[key]])];
+                }
+            }
+        }
+
+        function updateIntelDisplay() {
+            const container = document.getElementById('intelContainer');
+            let html = '';
+            let hasIntel = false;
+
+            const labels = {
+                bankAccounts: 'Bank Accounts',
+                upiIds: 'UPI IDs',
+                phishingLinks: 'Phishing Links',
+                phoneNumbers: 'Phone Numbers',
+                suspiciousKeywords: 'Keywords'
+            };
+
+            for (const key in extractedIntel) {
+                if (extractedIntel[key].length > 0) {
+                    hasIntel = true;
+                    html += `<div class="intel-item">
+                        <div class="intel-label">${labels[key] || key}</div>`;
+
+                    extractedIntel[key].forEach(val => {
+                        html += `<div class="intel-value">${val}</div>`;
+                    });
+
+                    html += `</div>`;
+                }
+            }
+
+            if (!hasIntel) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No intelligence gathered yet.</div>`;
+            } else {
+                container.innerHTML = html;
+            }
+        }
+
+        // --- Visualization Logic ---
+
+        function initChart() {
+            const ctx = document.getElementById('intelChart').getContext('2d');
+            intelChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Accounts', 'UPI', 'Links', 'Phones', 'Keywords'],
+                    datasets: [{
+                        label: 'Extracted Items',
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.5)',
+                            'rgba(54, 162, 235, 0.5)',
+                            'rgba(255, 206, 86, 0.5)',
+                            'rgba(75, 192, 192, 0.5)',
+                            'rgba(153, 102, 255, 0.5)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#30363d' },
+                            ticks: { color: '#8b949e', stepSize: 1 }
+                        },
+                        x: {
+                            grid: { color: '#30363d' },
+                            ticks: { color: '#8b949e' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateVisualizations() {
+            // Update Bar Chart
+            if (intelChart) {
+                intelChart.data.datasets[0].data = [
+                    extractedIntel.bankAccounts.length,
+                    extractedIntel.upiIds.length,
+                    extractedIntel.phishingLinks.length,
+                    extractedIntel.phoneNumbers.length,
+                    extractedIntel.suspiciousKeywords.length
+                ];
+                intelChart.update();
+            }
+
+            // Update Word Cloud (Simulated with HTML for robustness)
+            const cloudContainer = document.getElementById('wordCloud');
+            cloudContainer.innerHTML = '';
+
+            const keywords = extractedIntel.suspiciousKeywords;
+            if (keywords.length === 0) {
+                cloudContainer.innerHTML = '<div style="text-align:center; padding-top:80px; color:#8b949e; opacity:0.5;">No keywords yet</div>';
+                return;
+            }
+
+            // Simple scattering of keywords
+            keywords.forEach(word => {
+                const span = document.createElement('span');
+                span.innerText = word;
+                const size = 12 + Math.random() * 16;
+                const color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+
+                span.style.fontSize = `${size}px`;
+                span.style.color = color;
+                span.style.position = 'absolute';
+                span.style.padding = '5px';
+                span.style.display = 'inline-block';
+
+                // Random position logic intended for visual chaos/cloud effect
+                // Using simple flex wrap for now to ensure visibility without overlap issues
+                span.style.position = 'static';
+                span.style.margin = '5px';
+
+                cloudContainer.append(span);
+            });
+            cloudContainer.style.display = 'flex';
+            cloudContainer.style.flexWrap = 'wrap';
+            cloudContainer.style.alignContent = 'center';
+            cloudContainer.style.justifyContent = 'center';
+            cloudContainer.style.padding = '10px';
+        }
+
+    </script>
+</body>
+
+</html>

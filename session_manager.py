@@ -96,12 +96,13 @@ class SessionManager:
                 intelligence
             )
         
-        # Update agent notes
+        # Update agent notes with deduplication
         if agent_notes:
-            if session.agentNotes:
-                session.agentNotes += f" {agent_notes}"
-            else:
+            if not session.agentNotes:
                 session.agentNotes = agent_notes
+            elif agent_notes not in session.agentNotes:
+                # Append new notes only if they contain new information
+                session.agentNotes += f" | {agent_notes}"
         
         return session
     
