@@ -204,10 +204,10 @@ INSTRUCTION FOR RESPONSE:
 OUTPUT FORMAT (JSON ONLY):
 {{
   "scamDetected": boolean,
-  "reply": "Your persona-driven response (max 2 sentences)",
   "intelligence": {{
     "bankAccounts": [], "upiIds": [], "phishingLinks": [], "phoneNumbers": [], "suspiciousKeywords": []
   }},
+  "current_goal": "What you are trying to achieve right now (e.g. 'Get UPI ID', 'Stall for time', 'Pretend to fail payment')",
   "agentNotes": "Summary of scammer tactic (e.g. 'Urgency tactic detected')"
 }}
     
@@ -247,12 +247,12 @@ Generate ONLY the JSON:"""
             return data
         except json.JSONDecodeError:
             print("Failed to parse JSON from LLM")
-            return {"reply": response_text.strip(), "scamDetected": False, "intelligence": {}, "agentNotes": ""}
+            return {"reply": response_text.strip(), "scamDetected": False, "intelligence": {}, "agentNotes": "", "current_goal": "Engage scammer"}
 
     except Exception as e:
         print(f"LLM generation request error: {e}")
         # Fallback to simple responses
-        return {"reply": generate_agent_response_simple(message, conversation_history), "scamDetected": False, "intelligence": {}, "agentNotes": ""}
+        return {"reply": generate_agent_response_simple(message, conversation_history), "scamDetected": False, "intelligence": {}, "agentNotes": "", "current_goal": "Stall for time (Fallback)"}
 
 
 def generate_agent_response(message: Message, conversation_history: List[Message], extracted_intelligence: dict = None) -> dict:
@@ -265,12 +265,12 @@ def generate_agent_response(message: Message, conversation_history: List[Message
         extracted_intelligence: Data collected so far
         
     Returns:
-        Dictionary containing 'reply', 'scamDetected', 'intelligence', 'agentNotes'
+        Dictionary containing 'reply', 'scamDetected', 'intelligence', 'agentNotes', 'current_goal'
     """
     # Use LLM (checking happens inside the function)
     res = generate_agent_response_llm(message, conversation_history, extracted_intelligence)
     
     # Ensure it returns a dict even if something failed
     if isinstance(res, str):
-        return {"reply": res, "scamDetected": False, "intelligence": {}, "agentNotes": ""}
+        return {"reply": res, "scamDetected": False, "intelligence": {}, "agentNotes": "", "current_goal": "Engage scammer"}
     return res

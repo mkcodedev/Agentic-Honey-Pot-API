@@ -43,6 +43,7 @@ class HoneypotResponse(BaseModel):
     scamDetected: bool
     sessionId: str
     intelligence: ExtractedIntelligence = Field(default_factory=ExtractedIntelligence)
+    currentGoal: Optional[str] = None
 
 
 class CallbackPayload(BaseModel):

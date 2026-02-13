@@ -110,6 +110,7 @@ async def honeypot_endpoint(
         agent_scam_detected = agent_data.get("scamDetected", False)
         agent_intel = agent_data.get("intelligence", {})
         agent_notes = agent_data.get("agentNotes", "")
+        agent_goal = agent_data.get("current_goal", "Engage Scammer")
 
         # Merge AI-extracted intelligence with regex intelligence
         from extraction import ExtractedIntelligence
@@ -152,7 +153,8 @@ async def honeypot_endpoint(
             reply=agent_reply,
             scamDetected=session.scamDetected,
             intelligence=new_intelligence.model_dump(),
-            sessionId=request.sessionId
+            sessionId=request.sessionId,
+            currentGoal=agent_goal
         )
             
     except Exception as e:
