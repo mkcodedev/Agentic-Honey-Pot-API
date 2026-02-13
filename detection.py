@@ -96,7 +96,7 @@ def detect_suspicious_patterns(text: str) -> Tuple[bool, List[str]]:
 
 def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[bool, str]:
     """
-    Optional LLM-based scam detection using Google Gemini
+    Optional LLM-based scam detection using Google Gemini (via REST API)
     
     Args:
         text: Current message text
@@ -112,10 +112,11 @@ def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[boo
         return False, "LLM not configured"
     
     try:
-        import google.generativeai as genai
+        import requests
+        import json
         
-        genai.configure(api_key=llm_api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        # Use Gemini 1.5 Flash for speed and lower latency
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
         
         # Build context from conversation history
         context = "\n".join([f"{msg.sender}: {msg.text}" for msg in conversation_history[-5:]])
@@ -139,13 +140,28 @@ Is this a scam attempt? Consider:
 Respond with ONLY "YES" or "NO" followed by a brief reason.
 Format: YES|<reason> or NO|<reason>"""
 
-        response = model.generate_content(prompt)
-        result = response.text.strip()
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }
         
-        if result.startswith("YES"):
-            return True, result.split("|", 1)[1] if "|" in result else "LLM detected scam"
+        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
+        
+        if response.status_code != 200:
+            print(f"Gemini API Error in detection: {response.status_code} - {response.text}")
+            return False, f"API Error: {response.status_code}"
+            
+        result = response.json()
+        if 'candidates' not in result or not result['candidates']:
+             return False, "No response from LLM"
+             
+        response_text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+        
+        if response_text.startswith("YES"):
+            return True, response_text.split("|", 1)[1] if "|" in response_text else "LLM detected scam"
         else:
-            return False, result.split("|", 1)[1] if "|" in result else "Not a scam"
+            return False, response_text.split("|", 1)[1] if "|" in response_text else "Not a scam"
             
     except Exception as e:
         print(f"LLM detection error: {e}")

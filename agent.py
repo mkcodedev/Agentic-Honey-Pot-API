@@ -202,14 +202,15 @@ INSTRUCTION FOR RESPONSE:
 - Keep it short (1-2 sentences).
     
 OUTPUT FORMAT (JSON ONLY):
-{{
+{
+  "reply": "Your response to the scammer (Max 2 sentences)",
   "scamDetected": boolean,
-  "intelligence": {{
+  "intelligence": {
     "bankAccounts": [], "upiIds": [], "phishingLinks": [], "phoneNumbers": [], "suspiciousKeywords": []
-  }},
+  },
   "current_goal": "What you are trying to achieve right now (e.g. 'Get UPI ID', 'Stall for time', 'Pretend to fail payment')",
   "agentNotes": "Summary of scammer tactic (e.g. 'Urgency tactic detected')"
-}}
+}
     
 Generate ONLY the JSON:"""
         
