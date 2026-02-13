@@ -116,7 +116,7 @@ def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[boo
         import json
         
         # Use Gemini 1.5 Flash for speed and lower latency
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={llm_api_key}"
         
         # Build context from conversation history
         context = "\n".join([f"{msg.sender}: {msg.text}" for msg in conversation_history[-5:]])

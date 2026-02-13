@@ -67,7 +67,7 @@ if "scam_detected" not in st.session_state: st.session_state.scam_detected = Fal
 
 # --- Backend Config ---
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-API_KEY = os.getenv("HONEYPOT_API_KEY", "PROD_SECRET_123")
+API_KEY = os.getenv("HONEYPOT_API_KEY", "sk_honeypot_live_a8f92c3e4b5d6789xyz")
 
 # --- UI LAYOUT ---
 

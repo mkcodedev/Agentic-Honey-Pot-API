@@ -35,7 +35,7 @@ app.add_middleware(
 )
 
 # Get API key from environment
-HONEYPOT_API_KEY = os.getenv("HONEYPOT_API_KEY", "default-secret-key-change-me")
+HONEYPOT_API_KEY = os.getenv("HONEYPOT_API_KEY", "sk_honeypot_live_a8f92c3e4b5d6789xyz")
 
 
 @app.get("/")

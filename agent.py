@@ -144,7 +144,7 @@ def generate_agent_response_llm(message: Message, conversation_history: List[Mes
         import requests
         import json
         
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={llm_api_key}"
         
         # Build conversation context
         context = "\n".join([
