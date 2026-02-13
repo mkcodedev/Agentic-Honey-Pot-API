@@ -40,16 +40,9 @@ HONEYPOT_API_KEY = os.getenv("HONEYPOT_API_KEY", "default-secret-key-change-me")
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
-    return {
-        "service": "Agentic Honey-Pot API",
-        "version": "1.0.0",
-        "status": "active",
-        "endpoints": {
-            "honeypot": "/api/honeypot",
-            "health": "/health"
-        }
-    }
+    """Serve the frontend interface"""
+    from fastapi.responses import FileResponse
+    return FileResponse("index.html")
 
 
 @app.get("/health")
