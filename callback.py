@@ -8,6 +8,7 @@ from models import CallbackPayload, SessionData
 
 GUVI_CALLBACK_URL = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
 CALLBACK_TIMEOUT = 10  # seconds
+HONEYPOT_API_KEY = "sk_honeypot_live_a8f92c3e4b5d6789xyz"
 
 
 def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
@@ -40,7 +41,8 @@ def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
             GUVI_CALLBACK_URL,
             json=payload.model_dump(),
             headers={
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "x-api-key": HONEYPOT_API_KEY
             },
             timeout=CALLBACK_TIMEOUT
         )
