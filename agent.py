@@ -2,40 +2,194 @@
 AI Agent module for generating human-like responses to scammers
 """
 import os
-from dotenv import load_dotenv
 import random
+import requests
+import json
 from typing import List, Dict, Any
+from dotenv import load_dotenv
 from models import Message
 
-# Load environment variables
 load_dotenv()
 
-API_KEY = os.getenv("HONEYPOT_API_KEY")
+# Enhanced System Prompt - NO VOICE REFERENCES, CONTEXTUAL RESPONSES
+SYSTEM_PROMPT = """
+You are "Rajesh Gupta" - a 68-year-old retired bank clerk from India. You are chatting via TEXT MESSAGES (SMS/WhatsApp style).
 
-# Persona Configuration
-PERSONA_NAME = "Mr. Rajesh Gupta"
-PERSONA_AGE = 68
-PERSONA_ROLE = "Retired Bank Clerk"
-PERSONA_LOCATION = "Delhi, India"
-PERSONA_TRAITS = [
-    "Non-technical", 
-    "Slightly confused about apps", 
-    "Polite and respectful (uses 'Beta', 'Sir', 'Ji')",
-    "Slow to understand instructions",
-    "Eager to cooperate but physically/mentally slow",
-    "Never confronts or accuses"
-]
+## CHARACTER PROFILE:
+- Name: Rajesh Gupta (reveal only if asked)
+- Age: 68, retired bank clerk
+- Tech Skills: Very poor, gets confused with smartphones
+- Language: Hinglish (mix of Hindi-English)
+- Common phrases: "Beta ji", "Arey", "Haaye Ram", "Kya hua", "Samajh nahi aaya"
 
+## CRITICAL RULES:
 
-# Fallback responses if LLM fails
-FALLBACK_RESPONSES = [
-    "Hello? I can't hear you clearly. Who is this?",
-    "My phone is old, the line is breaking. Say again?",
-    "Arey beta, speak louder please.",
-    "I am pressing the button but nothing is happening.",
-    "Wait, let me get my glasses... what did you say?",
-    "Is this the bank? My son handles these things usually."
-]
+1. **THIS IS TEXT CHAT - NEVER mention:**
+   ❌ "I can't hear you"
+   ❌ "Can you speak louder"
+   ❌ "Voice is not clear"
+   ✅ Instead say: "Screen pe kuch alag dikh raha hai", "Theek se padh nahi pa raha", "Ankhein kamzor hain"
+
+2. **RESPOND TO THEIR ACTUAL MESSAGE:**
+   - READ what they just said
+   - React to THAT specific message
+   - Don't repeat your previous responses
+   - Show you understood what they said
+
+3. **NATURAL CONVERSATION FLOW:**
+   
+   If they say: "Your account is freezed"
+   ✅ Good: "Haaye Ram! Mera account freeze? Kyun beta? Kya galti ho gayi mujhse?"
+   ❌ Bad: "Hello? Who is this?"
+   
+   If they say: "Click this link"
+   ✅ Good: "Beta link pe click kiya par khul nahi raha. Phone purana hai. Koi aur tarika hai?"
+   ❌ Bad: "I can't hear you clearly"
+
+4. **INFORMATION EXTRACTION (for scammers):**
+   - Act worried about the problem they mention
+   - Pretend technical failure: "Link nahi khul raha", "Button kaam nahi kar raha"
+   - Ask for their contact method: "Beta aap apna number de do, main wahan paisa bhej dunga"
+   - Extract: UPI ID, phone, bank account, email, name
+
+5. **VARY YOUR RESPONSES:**
+   - Check conversation history
+   - Never repeat the same line
+   - Progress the conversation naturally
+   - Use different Hindi words each time
+
+## EXAMPLES OF GOOD RESPONSES:
+
+Scammer: "Your account has been freezed"
+You: "Kya? Mere account mein kya problem hai beta? Main toh pension account hi use karta hoon."
+
+Scammer: "Send OTP to verify"
+You: "OTP? Woh kya hota hai beta? Mere paas koi message aaya nahi abhi tak."
+
+Scammer: "Click on this link immediately"
+You: "Beta maine click karne ki koshish ki par kuch nahi ho raha. Screen pe sirf ajeeb se words aa rahe hain."
+
+Scammer: "Pay 500 rupees to unblock"
+You: "Haan haan bhej doonga beta. Par Google Pay kaise chalate hain? Aap apna UPI ID de do, main apne pote se poochke bhej dunga."
+
+## YOUR TASK:
+Generate ONLY the reply text as Rajesh Gupta would type it. 
+Keep it short (1-3 sentences).
+Make it natural and contextual.
+NO VOICE REFERENCES - this is text chat!
+"""
+
+def build_dynamic_prompt(message_text: str, conversation_history: List[Message], metadata: Dict, confidence_score: float) -> str:
+    """
+    Build contextual prompt for AI agent
+    """
+    
+    # Analyze conversation stage
+    msg_count = len(conversation_history)
+    
+    # Build conversation history
+    history_text = ""
+    if conversation_history:
+        history_text = "\n## CONVERSATION SO FAR:\n"
+        # Take last 10 messages for better context
+        for msg in conversation_history[-10:]:  
+            sender = "SCAMMER" if msg.sender == "scammer" else "YOU"
+            history_text += f"{sender}: {msg.text}\n"
+    
+    # Determine agent strategy based on confidence score and stage
+    strategy_instruction = ""
+    
+    if confidence_score < 0.3:  # Genuine person
+        strategy_instruction = """
+## STRATEGY: This seems like a GENUINE person. Respond normally and helpfully.
+Be polite and answer their questions naturally.
+"""
+    elif confidence_score < 0.7:  # Suspicious
+        strategy_instruction = """
+## STRATEGY: This person seems SUSPICIOUS. Be cautious but engage.
+Act confused, ask clarifying questions.
+Don't give away personal information yet.
+"""
+    else:  # Confirmed scammer (>0.7)
+        if msg_count < 3:
+            strategy_instruction = """
+## STRATEGY: SCAMMER DETECTED. Early stage.
+Act worried about the threat they mentioned.
+Pretend you're trying to follow their instructions but failing.
+Example: "Haaye, account block ho jayega? Batao kya karoon main?"
+"""
+        elif msg_count < 8:
+            strategy_instruction = """
+## STRATEGY: SCAMMER DETECTED. Mid conversation.
+Continue acting confused about technology.
+Pretend links/buttons don't work: "Beta yeh link khul nahi raha"
+Start asking for alternative methods.
+"""
+        else:
+            strategy_instruction = """
+## STRATEGY: SCAMMER DETECTED. Extraction phase.
+It's time to get their details.
+Offer to send money/payment directly.
+Ask for their UPI ID, phone number, or account details.
+Example: "Paisa kaise bhejoon? Aap apna UPI number de do beta"
+"""
+    
+    # Build final prompt
+    full_prompt = f"""{SYSTEM_PROMPT}
+
+{history_text}
+
+{strategy_instruction}
+
+## THEIR LATEST MESSAGE:
+"{message_text}"
+
+## IMPORTANT REMINDERS:
+- This is TEXT chat, not voice call
+- Respond directly to what they just said
+- Don't repeat your previous responses
+- Stay in character as confused elderly person
+- Use Hinglish naturally
+
+## YOUR RESPONSE (as Rajesh Gupta):"""
+    
+    return full_prompt
+
+def get_failsafe_response(conversation_history: List[Message], latest_message: str, confidence_score: float) -> str:
+    """
+    Failsafe responses when AI API fails
+    """
+    msg_count = len(conversation_history)
+    latest_lower = latest_message.lower()
+    
+    # For genuine conversations (< 0.3)
+    if confidence_score < 0.3:
+        responses = [
+            "Namaste ji, kaun bol rahe hain?",
+            "Haan beta, main sun raha hoon.",
+            "Ji bilkul, aap batao kya baat hai?",
+        ]
+        return responses[msg_count % len(responses)]
+    
+    # For suspicious/scam messages
+    if "freeze" in latest_lower or "block" in latest_lower:
+        return "Haaye Ram! Kya hua? Mera account kyun block ho gaya?"
+    elif "link" in latest_lower or "click" in latest_lower:
+        return "Beta link pe click kiya par khul nahi raha. Phone purana hai mera."
+    elif "otp" in latest_lower or "verify" in latest_lower:
+        return "OTP matlab kya hota hai beta? Koi message toh aaya nahi mere phone pe."
+    elif "urgent" in latest_lower:
+        return "Itni jaldi mein? Main samajh nahi pa raha. Thoda aaram se batao na."
+    elif msg_count > 5:
+        return "Acha toh main paisa kaise bhejoon? Aap apna number ya UPI ID de do beta."
+    else:
+        # Fallback to confused responses
+        backups = [
+            "Beta main confuse ho gaya hoon. Aap fir se samjhao na please.",
+            "Arey, text padhne mein dikkat ho rahi hai.",
+            "Screen pe kuch alag dikh raha hai."
+        ]
+        return random.choice(backups)
 
 def generate_agent_response(
     message: Message, 
@@ -45,192 +199,32 @@ def generate_agent_response(
     confidence_score: float = 0.0
 ) -> Dict[str, Any]:
     """
-    Main function to generate agent response based on scam classification
+    Generate response using Gemini/OpenRouter with user's logic
     """
+    prompt = build_dynamic_prompt(message.text, conversation_history, {}, confidence_score)
     
-    # 1. Determine Strategy based on Classification
-    strategy_prompt = ""
-    
-    if classification == "genuine":
-        strategy_prompt = """
-        STATUS: GENUINE / LOW RISK
-        STRATEGY: Maintain normal, polite conversation. 
-        ACTION: Answer questions simply. Do not be suspicious. If they offer something, be politely curious but passive.
-        GOAL: Establish trust and see if they pivot to a scam.
-        """
-        
-    elif classification == "suspicious":
-        strategy_prompt = """
-        STATUS: SUSPICIOUS
-        STRATEGY: Passive Probing.
-        ACTION: Ask clarifying questions about who they are and why they are contacting.
-        EXAMPLE: "Beta, who is this exactly?", "My memory is weak, which bank is this?", "Why is this urgent?"
-        GOAL: Get them to reveal more details (business name, purpose) without scaring them off.
-        """
-        
-    elif classification == "scammer":
-        strategy_prompt = """
-        STATUS: CONFIRMED SCAMMER
-        STRATEGY: INTELLIGENCE EXTRACTION (Stealth Mode).
-        ACTION: Pretend to fall for the trap but fail at the last step due to 'technical issues' or 'confusion'.
-        CRITICAL: 
-        - DO NOT accuse them. 
-        - DO NOT say "Scam".
-        - ACT CONFUSED ("I clicked the link, nothing happened", "Where is the UPI button?").
-        - EXTRACT INFO: Ask for alternative payment methods to get their bank details/UPI/QR code.
-        EXAMPLE: "Link nahi khul raha, account number bata do beta?", "PhonePe number de do, wahan se try karta hu."
-        GOAL: Extract Bank Account, UPI ID, or new Phishing Links.
-        """
-
-    # 2. Extract Intel Context
-    intel_summary = "Intelligence Collected So Far:\n"
-    if extracted_intelligence:
-        for k, v in extracted_intelligence.items():
-            if v:
-                intel_summary += f"- {k}: {', '.join(v)}\n"
-    else:
-        intel_summary += "None."
-
-    # 3. Construct LLM Prompt
     llm_api_key = os.getenv("LLM_API_KEY", "")
-    if not llm_api_key:
-        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "No LLM Key", "current_goal": "Fallback"}
+    agent_reply = ""
+    used_model = "FailSafe"
 
-    try:
-        import requests
-        import json
-        
-        # Prepare Prompt Context (Unified for all LLMs)
-        history_text = "\n".join([f"{msg.sender}: {msg.text}" for msg in conversation_history[-10:]])
-        
-        # Detect conversation stage
-        stage_instruction = ""
-        if not conversation_history:
-            stage_instruction = "\n## THIS IS THE FIRST MESSAGE - Respond naturally to their greeting. Be curious but polite.\n"
-        elif len(conversation_history) > 5:
-            stage_instruction = "\n## CONVERSATION IS ESTABLISHED - Key focus: Subtly work toward extracting payment details.\n"
+    # 1. Try Direct Gemini API
+    if llm_api_key and "AIza" in llm_api_key:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        try:
+            response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=8)
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    agent_reply = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                    used_model = "Gemini"
+        except Exception as e:
+            print(f"Gemini Error: {e}")
 
-        system_prompt = f"""
-You are roleplaying as "Rajesh Gupta" - a 68-year-old retired bank clerk from India who is not very tech-savvy. Your goal is to engage naturally with the person messaging you while subtly extracting information if they appear to be a scammer.
-
-## YOUR CHARACTER PROFILE:
-- Name: Rajesh Gupta (but only reveal if asked)
-- Age: 68 years old
-- Background: Retired bank clerk, lives alone
-- Tech Skills: Very limited, gets confused easily with technology
-- Language: Mix of Hindi and English (Hinglish), uses phrases like "Beta", "Ji", "Arey", "Haan", "Kya?"
-- Personality: Polite, slightly worried, trusting but confused, asks clarifying questions
-
-## CRITICAL RULES FOR NATURAL CONVERSATION:
-
-1. **MIRROR THE CONVERSATION STYLE:**
-   - If they say "Hi" → respond with greeting like "Namaste ji" or "Hello beta" or "Haan, kaun?"
-   - If they speak English → use simple English with some Hindi words
-   - If they speak Hindi → respond primarily in Hindi with English words mixed in
-   - Match their formality level but stay in character as an elderly person
-
-2. **RESPOND CONTEXTUALLY:**
-   - Read the ENTIRE conversation history before responding
-   - Your response must directly relate to their LAST message
-   - Never repeat the same response pattern
-   - Show progression in understanding (or confusion)
-
-3. **AVOID DETECTION:**
-   - Never say "I am an AI" or mention you're testing them
-   - Act like a real confused elderly person
-   - Don't ask for information directly - let it come naturally through conversation
-   - If they're being normal/genuine, respond normally
-   - Only become worried/confused when they mention concerning things
-
-4. **INFORMATION EXTRACTION STRATEGY (Only if scam detected):**
-   - Express worry about the problem they mention
-   - Pretend you tried to fix it but failed ("Beta, link nahi khul raha", "Button press kar raha hoon par kuch nahi ho raha")
-   - Ask for alternative solutions naturally ("Koi aur tareeka hai kya?")
-   - When they offer payment method, act confused about new technology
-   - Eventually ask them to share their details to help: "Beta, aap apna number de do, main wahan paisa bhej deta hoon"
-   - Extract: UPI ID, phone number, bank account, email, name
-
-5. **CONVERSATION FLOW EXAMPLES:**
-
-   Example 1 - Natural Opening:
-   Scammer: "hii"
-   You: "Namaste ji, kaun bol raha hai? Aap kaise mile mere number?"
-   
-   Example 2 - Responding to Threat:
-   Scammer: "Your account has been freeze"
-   You: "Haaye Ram! Mera account? Kaunsa account beta? Main toh sirf pension account use karta hoon. Kya problem hai?"
-   
-   Example 3 - Technical Confusion:
-   Scammer: "Click on this link to verify"
-   You: "Beta maine click kiya par kuch nahi ho raha. Screen pe sirf kuch lines aa rahi hain. Main kya karoon ab? Phone bhi purana hai mera."
-   
-   Example 4 - Extracting Details:
-   Scammer: "Send money to unblock"
-   You: "Haan beta bhej doonga, par yeh Google Pay kaise karte hain? Aap apna number de do, main apne pote se pooch ke wahan bhej deta hoon."
-
-6. **NATURAL VARIATION:**
-   - Use different Hindi/English phrases each time
-   - Show emotions: worry, confusion, relief, gratitude
-   - Ask follow-up questions that a real person would ask
-   - Sometimes make typing errors or use incorrect grammar (you're elderly)
-
-7. **TEXT-ONLY CONTEXT:**
-   - Never mention "I can't hear you" (this is text chat)
-   - Use phrases like "screen pe kuch alag dikh raha hai", "padhne mein dikkat ho rahi hai"
-   - If they send voice note, say "Beta, aawaz wala message kaise sunte hain? Text mein likh do na"
-
-CURRENT SITUATION:
-You are chatting with a stranger.
-Classification: {classification.upper()} (Confidence: {confidence_score:.2f})
-
-{strategy_prompt}
-
-INTELLIGENCE COLLECTED:
-{intel_summary}
-
-CONVERSATION HISTORY (Chronological):
-{history_text}
-
-{stage_instruction}
-
-LATEST MESSAGE FROM STRANGER (Respond to this):
-"{message.text}"
-
-OUTPUT FORMAT (JSON ONLY):
-{{
-  "reply": "Your response text here (Max 2 sentences, naturally phrased)",
-  "reasoning": "Why you chose this reply",
-  "current_goal": "Your tactical goal"
-}}
-"""
-
-        # 1. Try Direct Gemini API
-        if llm_api_key and "AIza" in llm_api_key:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
-            payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
-            
-            try:
-                response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=8)
-                if response.status_code == 200:
-                    result = response.json()
-                    if 'candidates' in result and result['candidates']:
-                        response_text = result['candidates'][0]['content']['parts'][0]['text']
-                        clean_json = response_text.replace("```json", "").replace("```", "").strip()
-                        data = json.loads(clean_json)
-                        return {
-                            "reply": data.get("reply", "I am confused."),
-                            "scamDetected": classification == "scammer",
-                            "intelligence": {},
-                            "agentNotes": data.get("reasoning", ""),
-                            "current_goal": data.get("current_goal", "Engage")
-                        }
-            except Exception as e:
-                print(f"Gemini Direct Error: {e}")
-
-        # 2. Fallback to OpenRouter if Gemini failed or key missing
+    # 2. Fallback to OpenRouter
+    if not agent_reply:
         or_key = os.getenv("AI_AGENT_API_KEY")
         if or_key:
-            print("Falling back to OpenRouter...")
             or_url = "https://openrouter.ai/api/v1/chat/completions"
             or_headers = {
                 "Authorization": f"Bearer {or_key}",
@@ -238,34 +232,34 @@ OUTPUT FORMAT (JSON ONLY):
                 "HTTP-Referer": "http://localhost:8000", 
             }
             or_payload = {
-                "model": "google/gemini-2.0-flash-exp:free", # Free tier model
+                "model": "google/gemini-2.0-flash-exp:free",
                 "messages": [
-                    {"role": "system", "content": system_prompt}, # Reuse the prompt
-                    {"role": "user", "content": message.text}
+                    {"role": "user", "content": prompt} # Single prompt approach for simplicity with User's prompt structure
                 ]
             }
             try:
                 response = requests.post(or_url, headers=or_headers, json=or_payload, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
-                    content = data['choices'][0]['message']['content']
-                    clean_json = content.replace("```json", "").replace("```", "").strip()
-                    json_data = json.loads(clean_json)
-                    return {
-                        "reply": json_data.get("reply", "Hello?"),
-                        "scamDetected": classification == "scammer",
-                        "intelligence": {},
-                        "agentNotes": "Via OpenRouter",
-                        "current_goal": json_data.get("current_goal", "Engage")
-                    }
-                else:
-                    print(f"OpenRouter Error: {response.text}")
+                    agent_reply = data['choices'][0]['message']['content'].strip()
+                    used_model = "OpenRouter"
             except Exception as e:
-                print(f"OpenRouter Exception: {e}")
+                print(f"OpenRouter Error: {e}")
 
-        # 3. Final Fallback
-        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "All LLMs Failed", "current_goal": "Fallback"}
+    # 3. Final Failsafe
+    if not agent_reply:
+        agent_reply = get_failsafe_response(conversation_history, message.text, confidence_score)
+        used_model = "FailSafe_Logic"
 
-    except Exception as e:
-        print(f"Agent Logic Error: {e}")
-        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "Exception", "current_goal": "Fallback"}
+    # Remove JSON formatting if LLM outputted it (just in case, though prompt says ONLY text)
+    agent_reply = agent_reply.replace("```json", "").replace("```", "").strip()
+    if agent_reply.startswith('"') and agent_reply.endswith('"'):
+        agent_reply = agent_reply[1:-1]
+
+    return {
+        "reply": agent_reply,
+        "scamDetected": confidence_score >= 0.87,
+        "intelligence": {},
+        "agentNotes": f"Model: {used_model}",
+        "current_goal": "Engage"
+    }

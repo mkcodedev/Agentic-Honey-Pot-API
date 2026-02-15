@@ -64,6 +64,8 @@ if "messages" not in st.session_state: st.session_state.messages = []
 if "session_id" not in st.session_state: st.session_state.session_id = f"session-{uuid.uuid4().hex[:12]}"
 if "intel" not in st.session_state: st.session_state.intel = {"bankAccounts":[], "upiIds":[], "phishingLinks":[], "phoneNumbers":[], "suspiciousKeywords":[]}
 if "scam_detected" not in st.session_state: st.session_state.scam_detected = False
+if "confidence_score" not in st.session_state: st.session_state.confidence_score = 0.0
+if "classification" not in st.session_state: st.session_state.classification = "genuine"
 
 # --- Backend Config ---
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -101,6 +103,15 @@ col_main, col_right = st.columns([2, 1.2])
 with col_main:
     st.subheader("🔒 Secure Chat Terminal")
     
+    # Classification Display
+    score = st.session_state.confidence_score
+    if score >= 0.87:
+        st.error(f"🔴 SCAMMER DETECTED (Confidence: {score:.2f})")
+    elif score >= 0.3:
+        st.warning(f"🟡 SUSPICIOUS ACTIVITY (Confidence: {score:.2f})")
+    else:
+        st.success(f"🟢 GENUINE CONVERSATION (Confidence: {score:.2f})")
+
     # Chat Window
     chat_container = st.container(height=500, border=False)
     with chat_container:
@@ -110,9 +121,25 @@ with col_main:
                         '<p>Waiting for incoming scammer connection...</p>'
                         '</div>', unsafe_allow_html=True)
         else:
-            for message in st.session_state.messages:
-                with st.chat_message("user" if message["sender"] == "scammer" else "assistant"):
-                    st.write(message["text"])
+            for msg in st.session_state.messages:
+                if msg['sender'] == 'scammer':
+                    st.markdown(f"""
+                    <div style='text-align: right; margin: 10px 0;'>
+                        <div style='background: #3B82F6; color: white; padding: 12px 16px; 
+                                    border-radius: 12px; display: inline-block; max-width: 70%; text-align: left;'>
+                            🎣 Scammer: {msg['text']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style='text-align: left; margin: 10px 0;'>
+                        <div style='background: #1F2937; color: white; padding: 12px 16px; 
+                                    border-radius: 12px; display: inline-block; max-width: 70%; text-align: left;'>
+                            🎯 Agent: {msg['text']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     # Chat Input
     if prompt := st.chat_input("Simulate scammer message here..."):
@@ -135,7 +162,9 @@ with col_main:
                 if res.status_code == 200:
                     data = res.json()
                     st.session_state.messages.append({"sender": "assistant", "text": data["reply"], "timestamp": int(time.time() * 1000)})
-                    st.session_state.scam_detected = data["scamDetected"]
+                    st.session_state.scam_detected = data.get("scamDetected", False)
+                    st.session_state.confidence_score = data.get("confidenceScore", 0.0)
+                    st.session_state.classification = data.get("classification", "genuine")
                     
                     # Update intelligence
                     for key in st.session_state.intel:

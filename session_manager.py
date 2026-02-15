@@ -144,12 +144,22 @@ class SessionManager:
             return False
         
         # Callback should be sent if:
-        # 1. Scam was detected
+        # 1. Scam was detected with High Confidence (>= 0.87)
         # 2. At least 8 messages exchanged
         # 3. Callback not already sent
+        # 4. We have extracted some intelligence
+        
+        has_intel = (
+            len(session.extractedIntelligence.upiIds) > 0 or
+            len(session.extractedIntelligence.phoneNumbers) > 0 or
+            len(session.extractedIntelligence.bankAccounts) > 0 or
+            len(session.extractedIntelligence.phishingLinks) > 0
+        )
+        
         return (
-            session.scamDetected and
+            session.confidenceScore >= 0.87 and
             session.totalMessagesExchanged >= 8 and
+            has_intel and
             not session.callbackSent
         )
     
