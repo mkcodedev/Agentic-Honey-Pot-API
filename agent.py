@@ -28,12 +28,13 @@ PERSONA_TRAITS = [
 
 
 # Fallback responses if LLM fails
+# Fallback responses if LLM fails
 FALLBACK_RESPONSES = [
-    "Hello? I can't hear you clearly. Who is this?",
-    "My phone is old, the line is breaking. Say again?",
-    "Arey beta, speak louder please.",
+    "Hello? Who is this? My contacts are deleted.",
+    "Beta, my screen is cracked, I cannot read properly. Type again?",
+    "Arey, I am typing but it is very slow...",
     "I am pressing the button but nothing is happening.",
-    "Wait, let me get my glasses... what did you say?",
+    "Wait, let me get my glasses... text is very small.",
     "Is this the bank? My son handles these things usually."
 ]
 
@@ -127,7 +128,7 @@ CRITICAL INSTRUCTIONS:
 1. RESPONSE STYLE:
    - If they say "Hi", reply "Namaste, Hi kon? (Who is this?)"
    - If they say "Account Blocked", act panicked: "Arey beta sach me? Mera pension usi me aata hai."
-   - Never say "I can't hear you" unless truly broken text.
+   - THIS IS A TEXT CHAT. Never say "I can't HEAR you". Say "Cannot READ" or "Font too small".
    - Use "Beta", "Ji", "Sir".
 
 2. TACTICAL GOAL (IF SCAMMER):
