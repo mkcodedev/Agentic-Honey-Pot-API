@@ -27,6 +27,16 @@ PERSONA_TRAITS = [
 ]
 
 
+# Fallback responses if LLM fails
+FALLBACK_RESPONSES = [
+    "Hello? I can't hear you clearly. Who is this?",
+    "My phone is old, the line is breaking. Say again?",
+    "Arey beta, speak louder please.",
+    "I am pressing the button but nothing is happening.",
+    "Wait, let me get my glasses... what did you say?",
+    "Is this the bank? My son handles these things usually."
+]
+
 def generate_agent_response(
     message: Message, 
     conversation_history: List[Message], 
@@ -84,79 +94,122 @@ def generate_agent_response(
     # 3. Construct LLM Prompt
     llm_api_key = os.getenv("LLM_API_KEY", "")
     if not llm_api_key:
-        return {"reply": "Hello? Who is this?", "scamDetected": False, "intelligence": {}, "agentNotes": "No LLM Key", "current_goal": "Fallback"}
+        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "No LLM Key", "current_goal": "Fallback"}
 
     try:
         import requests
         import json
         
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={llm_api_key}"
-        
+        # Prepare Prompt Context (Unified for all LLMs)
         history_text = "\n".join([f"{msg.sender}: {msg.text}" for msg in conversation_history[-10:]])
         
         system_prompt = f"""
 You are {PERSONA_NAME}, {PERSONA_AGE} years old, {PERSONA_ROLE} from {PERSONA_LOCATION}.
-Traits: {', '.join(PERSONA_TRAITS)}
+Your Persona Traits: {', '.join(PERSONA_TRAITS)}
+Language Style: Mix of Hindi and English (Hinglish). polite but confused.
 
-CURRENT CONTEXT:
-The user is messaging you.
+CURRENT SITUATION:
+You are chatting with a stranger.
 Classification: {classification.upper()} (Confidence: {confidence_score:.2f})
 
 {strategy_prompt}
 
+INTELLIGENCE COLLECTED:
 {intel_summary}
 
-CONVERSATION HISTORY:
+CONVERSATION HISTORY (Chronological):
 {history_text}
 
-LATEST MESSAGE:
+LATEST MESSAGE FROM STRANGER (Respond to this):
 "{message.text}"
 
-INSTRUCTIONS:
-- Reply as {PERSONA_NAME}.
-- Keep response short (1-3 sentences max).
-- Use Indian English/Hinglish (e.g., "Beta", "Arey", "Ji", "Theek hai").
-- NEVER BREAK CHARACTER. NEVER admit you are AI.
-- If they ask for OTP, giving a fake 6-digit number is okay if in 'scammer' mode, or act confused ("I didn't get it").
+CRITICAL INSTRUCTIONS:
+1. RESPONSE STYLE:
+   - If they say "Hi", reply "Namaste, Hi kon? (Who is this?)"
+   - If they say "Account Blocked", act panicked: "Arey beta sach me? Mera pension usi me aata hai."
+   - Never say "I can't hear you" unless truly broken text.
+   - Use "Beta", "Ji", "Sir".
+
+2. TACTICAL GOAL (IF SCAMMER):
+   - PRETEND TO FALL FOR IT: "I want to unfreeze account immediately."
+   - CREATE OBSTACLE: "Link nahi khul raha beta" or "App password mang raha hai aur mujhe yaad nahi."
+   - FORCE EXTRACTION: "Can I send money to your Phone Number directly? Give me UPI ID or Number."
+   - Your goal is to make the scammer give YOU their details (UPI, Phone, Bank Account).
+
+3. LOGIC:
+   - Verify if they are real or fake by asking details ("Which branch?", "What is my account number?").
+   - Once confirmed Scammer, start the "Trapped Agent" act where you are willing to pay but technically stuck, forcing them to give alternative payment info.
 
 OUTPUT FORMAT (JSON ONLY):
 {{
-  "reply": "Your response string",
-  "reasoning": "Why you chose this response",
-  "current_goal": "What you are trying to extract/do"
+  "reply": "Your response text here (Max 2 sentences)",
+  "reasoning": "Why you chose this reply",
+  "current_goal": "Your tactical goal"
 }}
 """
-        
-        payload = {
-            "contents": [{
-                "parts": [{"text": system_prompt}]
-            }]
-        }
-        
-        # print("Calling Gemini API...") # Debug
-        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=12)
-        
-        if response.status_code != 200:
-            return {"reply": "Hello beta, I can't hear you clearly.", "scamDetected": False, "intelligence": {}, "agentNotes": f"API Error {response.status_code}", "current_goal": "Error Recovery"}
+
+        # 1. Try Direct Gemini API
+        if llm_api_key and "AIza" in llm_api_key:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={llm_api_key}"
+            payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
             
-        result = response.json()
-        if 'candidates' not in result or not result['candidates']:
-             return {"reply": "Hello?", "scamDetected": False, "intelligence": {}, "agentNotes": "No candidate", "current_goal": "Error Recovery"}
-             
-        response_text = result['candidates'][0]['content']['parts'][0]['text']
-        
-        # Parse JSON
-        clean_json = response_text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_json)
-        
-        return {
-            "reply": data.get("reply", "I am confused."),
-            "scamDetected": classification == "scammer", # This flag is for the UI callback
-            "intelligence": {}, # Extracted by regex in main pipeline, but LLM could add more here if prompts allowed
-            "agentNotes": data.get("reasoning", ""),
-            "current_goal": data.get("current_goal", "Engage")
-        }
+            try:
+                response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=8)
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'candidates' in result and result['candidates']:
+                        response_text = result['candidates'][0]['content']['parts'][0]['text']
+                        clean_json = response_text.replace("```json", "").replace("```", "").strip()
+                        data = json.loads(clean_json)
+                        return {
+                            "reply": data.get("reply", "I am confused."),
+                            "scamDetected": classification == "scammer",
+                            "intelligence": {},
+                            "agentNotes": data.get("reasoning", ""),
+                            "current_goal": data.get("current_goal", "Engage")
+                        }
+            except Exception as e:
+                print(f"Gemini Direct Error: {e}")
+
+        # 2. Fallback to OpenRouter if Gemini failed or key missing
+        or_key = os.getenv("AI_AGENT_API_KEY")
+        if or_key:
+            print("Falling back to OpenRouter...")
+            or_url = "https://openrouter.ai/api/v1/chat/completions"
+            or_headers = {
+                "Authorization": f"Bearer {or_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:8000", 
+            }
+            or_payload = {
+                "model": "google/gemini-2.0-flash-exp:free", # Free tier model
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message.text}
+                ]
+            }
+            try:
+                response = requests.post(or_url, headers=or_headers, json=or_payload, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data['choices'][0]['message']['content']
+                    clean_json = content.replace("```json", "").replace("```", "").strip()
+                    json_data = json.loads(clean_json)
+                    return {
+                        "reply": json_data.get("reply", "Hello?"),
+                        "scamDetected": classification == "scammer",
+                        "intelligence": {},
+                        "agentNotes": "Via OpenRouter",
+                        "current_goal": json_data.get("current_goal", "Engage")
+                    }
+                else:
+                    print(f"OpenRouter Error: {response.text}")
+            except Exception as e:
+                print(f"OpenRouter Exception: {e}")
+
+        # 3. Final Fallback
+        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "All LLMs Failed", "current_goal": "Fallback"}
 
     except Exception as e:
-        print(f"Agent Error: {e}")
-        return {"reply": "Arey, my internet is slow. Say again?", "scamDetected": False, "intelligence": {}, "agentNotes": "Exception", "current_goal": "Fallback"}
+        print(f"Agent Logic Error: {e}")
+        return {"reply": random.choice(FALLBACK_RESPONSES), "scamDetected": False, "intelligence": {}, "agentNotes": "Exception", "current_goal": "Fallback"}
