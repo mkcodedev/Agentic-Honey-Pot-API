@@ -157,39 +157,76 @@ Example: "Paisa kaise bhejoon? Aap apna UPI number de do beta"
 
 def get_failsafe_response(conversation_history: List[Message], latest_message: str, confidence_score: float) -> str:
     """
-    Failsafe responses when AI API fails
+    Failsafe responses when AI API fails - Randomized to avoid repetition
     """
     msg_count = len(conversation_history)
     latest_lower = latest_message.lower()
     
-    # For genuine conversations (< 0.3)
-    if confidence_score < 0.3:
-        responses = [
+    # Dictionary of varied responses for different scenarios
+    FALLBACK_PHRASES = {
+        "genuine": [
             "Namaste ji, kaun bol rahe hain?",
             "Haan beta, main sun raha hoon.",
             "Ji bilkul, aap batao kya baat hai?",
-        ]
-        return responses[msg_count % len(responses)]
-    
-    # For suspicious/scam messages
-    if "freeze" in latest_lower or "block" in latest_lower:
-        return "Haaye Ram! Kya hua? Mera account kyun block ho gaya?"
-    elif "link" in latest_lower or "click" in latest_lower:
-        return "Beta link pe click kiya par khul nahi raha. Phone purana hai mera."
-    elif "otp" in latest_lower or "verify" in latest_lower:
-        return "OTP matlab kya hota hai beta? Koi message toh aaya nahi mere phone pe."
-    elif "urgent" in latest_lower:
-        return "Itni jaldi mein? Main samajh nahi pa raha. Thoda aaram se batao na."
-    elif msg_count > 5:
-        return "Acha toh main paisa kaise bhejoon? Aap apna number ya UPI ID de do beta."
-    else:
-        # Fallback to confused responses
-        backups = [
+            "Hello beta, kaise ho aap?"
+        ],
+        "block": [
+            "Haaye Ram! Kya hua? Mera account kyun block ho gaya?",
+            "Beta mere pension ka kya hoga agar account band ho gaya?",
+            "Arey main toh darr gaya. Kya galti ho gayi mujhse?",
+            "Block? Maine toh kal hi use kiya tha. Yeh kaise hua?"
+        ],
+        "link": [
+            "Beta link pe click kiya par khul nahi raha. Phone purana hai mera.",
+            "Link open nahi ho raha, screen blank ho gayi hai.",
+            "Aankhein kamzor hain, bada font wala link bhejo na.",
+            "Beta yeh link secure hai na? Mere pote ne mana kiya hai links kholne se."
+        ],
+        "otp": [
+            "OTP matlab kya hota hai beta? Koi message toh aaya nahi.",
+            "Message aaya hai par usme likha hai 'Do not share'. Kya karoon?",
+            "Beta chashma nahi mil raha, OTP padh nahi pa raha.",
+            "Phone number verify karna hoga kya OTP ke liye?"
+        ],
+        "urgent": [
+            "Itni jaldi mein? Main samajh nahi pa raha. Thoda aaram se batao na.",
+            "Beta main buzurg hoon, jaldi baazi mein ghabra jata hoon.",
+            "Thoda time do beta, main dhoond raha hoon details.",
+            "Haaye, itni urgency kyun hai?"
+        ],
+        "extraction": [
+            "Acha toh main paisa kaise bhejoon? Aap apna number ya UPI ID de do beta.",
+            "Beta Google Pay nahi hai mere paas, aapka bank account number do.",
+            "Main seedha transfer kar deta hoon, details bhejo.",
+            "Paytm number hai toh de do, main dukaan wale se karwa leta hoon."
+        ],
+        "confused": [
             "Beta main confuse ho gaya hoon. Aap fir se samjhao na please.",
             "Arey, text padhne mein dikkat ho rahi hai.",
-            "Screen pe kuch alag dikh raha hai."
+            "Screen pe kuch alag dikh raha hai.",
+            "Beta thoda aur simple batao na, main technology kam samajhta hoon."
         ]
-        return random.choice(backups)
+    }
+    
+    # 1. Genuine Conversations (< 0.3)
+    if confidence_score < 0.3:
+        return random.choice(FALLBACK_PHRASES["genuine"])
+    
+    # 2. Scammer / Suspicious - Determine Category
+    category = "confused" # Default
+    
+    if "freeze" in latest_lower or "block" in latest_lower:
+        category = "block"
+    elif "link" in latest_lower or "click" in latest_lower:
+        category = "link"
+    elif "otp" in latest_lower or "verify" in latest_lower:
+        category = "otp"
+    elif "urgent" in latest_lower or "immediately" in latest_lower:
+        category = "urgent"
+    elif msg_count > 5:
+        category = "extraction"
+        
+    return random.choice(FALLBACK_PHRASES[category])
 
 def generate_agent_response(
     message: Message, 
