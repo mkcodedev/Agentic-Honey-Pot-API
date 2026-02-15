@@ -27,7 +27,9 @@ def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
         scamDetected=session.scamDetected,
         totalMessagesExchanged=session.totalMessagesExchanged,
         extractedIntelligence=session.extractedIntelligence,
-        agentNotes=session.agentNotes or "Scammer engaged successfully"
+        agentNotes=session.agentNotes or "Scammer engaged successfully",
+        confidenceScore=session.confidenceScore,
+        classification=session.classification
     )
     
     # Print payload for debugging
