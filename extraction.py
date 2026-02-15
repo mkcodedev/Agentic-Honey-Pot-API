@@ -209,3 +209,51 @@ def extract_intelligence_from_conversation(messages: List[Message]) -> Extracted
         combined = merge_intelligence(combined, message_intelligence)
     
     return combined
+
+def extract_intelligence_from_history(conversation_history: List[dict]) -> dict:
+    """
+    Extract scammer intelligence from full conversation history
+    """
+    intel = {
+        "bankAccounts": [],
+        "upiIds": [],
+        "phishingLinks": [],
+        "phoneNumbers": [],
+        "suspiciousKeywords": []
+    }
+    
+    # Get all scammer messages
+    scammer_text = ""
+    for msg in conversation_history:
+        # Handle both dict and object
+        if isinstance(msg, dict):
+            if msg.get("sender") == "scammer":
+                scammer_text += " " + msg.get("text", "")
+        else:
+            if msg.sender == "scammer":
+                scammer_text += " " + msg.text
+
+    # Extract UPI IDs
+    upi_pattern = r'\b[\w.-]+@[\w.-]+\b'
+    intel["upiIds"] = list(set(re.findall(upi_pattern, scammer_text)))
+    
+    # Extract phone numbers (Indian)
+    phone_pattern = r'(?:\+91[\s-]?)?[6-9]\d{9}'
+    intel["phoneNumbers"] = list(set(re.findall(phone_pattern, scammer_text)))
+    
+    # Extract URLs
+    url_pattern = r'http[s]?://[^\s]+'
+    intel["phishingLinks"] = list(set(re.findall(url_pattern, scammer_text)))
+    
+    # Extract potential bank accounts
+    bank_pattern = r'\b\d{9,18}\b'
+    intel["bankAccounts"] = list(set(re.findall(bank_pattern, scammer_text)))
+    
+    # Collect keywords
+    keywords = ["urgent", "blocked", "freeze", "verify", "suspend", "otp", "cvv", "expire", "kyc", "rbi"]
+    intel["suspiciousKeywords"] = [
+        word for word in keywords
+        if word in scammer_text.lower()
+    ]
+    
+    return intel

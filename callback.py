@@ -21,12 +21,19 @@ def send_callback(session: SessionData) -> tuple[bool, Optional[str]]:
     Returns:
         Tuple of (success, error_message)
     """
+    # Re-extract intelligence (ensure we catch everything)
+    from extraction import extract_intelligence_from_history, ExtractedIntelligence
+    
+    # Extract fresh intel from history
+    intel_dict = extract_intelligence_from_history(session.conversationHistory)
+    fresh_intel = ExtractedIntelligence(**intel_dict)
+
     # Prepare callback payload
     payload = CallbackPayload(
         sessionId=session.sessionId,
         scamDetected=session.scamDetected,
         totalMessagesExchanged=session.totalMessagesExchanged,
-        extractedIntelligence=session.extractedIntelligence,
+        extractedIntelligence=fresh_intel,
         agentNotes=session.agentNotes or "Scammer engaged successfully",
         confidenceScore=session.confidenceScore,
         classification=session.classification
