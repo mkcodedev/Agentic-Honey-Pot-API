@@ -55,8 +55,6 @@ class CallbackPayload(BaseModel):
     totalMessagesExchanged: int
     extractedIntelligence: ExtractedIntelligence
     agentNotes: str
-    confidenceScore: float
-    classification: str
 
 
 class SessionData(BaseModel):
