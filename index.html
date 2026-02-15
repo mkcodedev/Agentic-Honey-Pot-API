@@ -264,8 +264,9 @@
         @media (max-width: 768px) {
             body {
                 flex-direction: column;
-                height: 100vh;
-                overflow: hidden;
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
             }
 
             .sidebar {
@@ -280,15 +281,25 @@
                 border-right: none;
                 border-bottom: 1px solid var(--border);
                 gap: 10px;
+                flex-shrink: 0;
             }
 
             .brand {
                 font-size: 1rem;
             }
 
-            .session-info,
-            .right-panel {
+            .session-info {
                 display: none;
+            }
+
+            .right-panel {
+                display: block;
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border);
+                height: auto;
+                order: 3;
+                /* Ensure it comes after main content */
             }
 
             .reset-btn {
@@ -299,7 +310,10 @@
             .main-content {
                 padding: 10px;
                 width: 100%;
-                height: calc(100vh - 70px);
+                height: 65vh;
+                /* Fixed height for chat area */
+                flex: none;
+                order: 2;
             }
 
             .message {
