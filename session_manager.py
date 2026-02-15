@@ -62,7 +62,9 @@ class SessionManager:
         new_message: Optional[Message] = None,
         scam_detected: Optional[bool] = None,
         intelligence: Optional[ExtractedIntelligence] = None,
-        agent_notes: Optional[str] = None
+        agent_notes: Optional[str] = None,
+        confidence_score: Optional[float] = None,
+        classification: Optional[str] = None
     ) -> SessionData:
         """
         Update session data
@@ -73,6 +75,8 @@ class SessionManager:
             scam_detected: Whether scam was detected
             intelligence: Extracted intelligence to merge
             agent_notes: Notes about the scammer behavior
+            confidence_score: New confidence score
+            classification: New classification
             
         Returns:
             Updated SessionData
@@ -87,6 +91,13 @@ class SessionManager:
         # Update scam detection status
         if scam_detected is not None:
             session.scamDetected = scam_detected
+            
+        # Update confidence metrics
+        if confidence_score is not None:
+            session.confidenceScore = confidence_score
+            
+        if classification is not None:
+            session.classification = classification
         
         # Merge intelligence data
         if intelligence:

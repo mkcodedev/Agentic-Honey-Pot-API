@@ -190,15 +190,57 @@
             padding-bottom: 8px;
         }
 
-        .status-scam {
-            color: #ff4d4d;
+        /* Status Badges */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
             font-weight: bold;
-            display: none;
+            display: inline-block;
+        }
+
+        .status-genuine {
+            color: #2ea043;
+            border: 1px solid #2ea043;
+            background-color: rgba(46, 160, 67, 0.1);
+        }
+
+        .status-suspicious {
+            color: #d29922;
+            border: 1px solid #d29922;
+            background-color: rgba(210, 153, 34, 0.1);
+        }
+
+        .status-scammer {
+            color: #f85149;
+            border: 1px solid #f85149;
+            background-color: rgba(248, 81, 73, 0.1);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(248, 81, 73, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(248, 81, 73, 0);
+            }
         }
 
         .intel-item {
             margin-bottom: 12px;
         }
+
+        /* ... existing CSS ... */
+
+
+
+
 
         .intel-label {
             font-size: 0.75rem;
@@ -244,7 +286,7 @@
         <div class="chat-container">
             <div class="chat-header">
                 <span>Secure Terminal</span>
-                <span id="scamAlert" class="status-scam">🚨 SCAM DETECTED</span>
+                <span id="scamAlert" class="status-badge status-genuine">🟢 Genuine</span>
             </div>
             <div class="messages" id="messages">
                 <!-- Messages will appear here -->
@@ -266,6 +308,14 @@
         <div class="card">
             <h3>📊 Intelligence Extracted</h3>
             <div id="intelContainer">
+                <!-- Added Status Section -->
+                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+                    <div class="intel-label">CONFIDENCE SCORE</div>
+                    <div id="confidenceDisplay" style="font-size: 1.5rem; font-weight: bold; color: #f0f6fc;">0.00</div>
+                    <div class="intel-label" style="margin-top:10px;">CLASSIFICATION</div>
+                    <div id="classificationDisplay" style="font-size: 1.1rem; color: #238636;">Genuine</div>
+                </div>
+
                 <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
                     No intelligence gathered yet.
                 </div>
@@ -324,7 +374,9 @@
                     <h2>...</h2>
                     <p>Session Reset. Waiting for connection...</p>
                 </div>`;
-            document.getElementById('scamAlert').style.display = 'none';
+
+            // Reset Status UI
+            updateStatus(0.0, 'genuine');
             extractedIntel = { bankAccounts: [], upiIds: [], phishingLinks: [], phoneNumbers: [], suspiciousKeywords: [] };
             updateIntelDisplay();
             updateVisualizations();
@@ -404,17 +456,20 @@
                     // Add Agent Reply
                     appendMessage('agent', '👴 Target: ' + data.reply);
 
-                    // Update Scam Status
-                    if (data.scamDetected) {
-                        document.getElementById('scamAlert').style.display = 'block';
-                        document.getElementById('scamAlert').innerText = '🚨 SCAM DETECTED - COLLECTING INTEL';
-                    }
+                    // Update Status (New Logic)
+                    updateStatus(data.confidenceScore, data.classification);
 
                     // Update Intelligence
                     if (data.intelligence) {
                         mergeIntelligence(data.intelligence);
                         updateIntelDisplay();
                         updateVisualizations();
+                    }
+
+                    // Update Strategy
+                    if (data.currentGoal) {
+                        const strategyDiv = document.getElementById('currentStrategy');
+                        if (strategyDiv) strategyDiv.innerText = data.currentGoal;
                     }
                 } else {
                     appendMessage('agent', 'System Error: ' + JSON.stringify(data));
@@ -423,7 +478,7 @@
             } catch (error) {
                 console.error('Error:', error);
                 const typingElement = document.getElementById(typingId);
-                if (typingElement) typingElement.remove();
+                if (typingElement && typingElement.parentNode) typingElement.parentNode.removeChild(typingElement);
                 appendMessage('agent', 'Connection Error: Is the backend running?');
             }
         }
@@ -451,9 +506,48 @@
             }
         }
 
+        function updateStatus(score, classification) {
+            const badge = document.getElementById('scamAlert');
+            const scoreDisplay = document.getElementById('confidenceDisplay');
+            const classDisplay = document.getElementById('classificationDisplay');
+
+            // Format Score
+            const scoreVal = parseFloat(score || 0).toFixed(2);
+            if (scoreDisplay) scoreDisplay.innerText = scoreVal;
+
+            // Update Classification Display
+            if (classDisplay) {
+                classDisplay.innerText = classification.charAt(0).toUpperCase() + classification.slice(1);
+                // Color mapping
+                if (classification === 'scammer') classDisplay.style.color = '#f85149';
+                else if (classification === 'suspicious') classDisplay.style.color = '#d29922';
+                else classDisplay.style.color = '#2ea043';
+            }
+
+            // Update Header Badge
+            badge.className = 'status-badge'; // Reset
+            if (classification === 'scammer') {
+                badge.classList.add('status-scammer');
+                badge.innerText = '🔴 SCAMMER DETECTED';
+            } else if (classification === 'suspicious') {
+                badge.classList.add('status-suspicious');
+                badge.innerText = '🟡 SUSPICIOUS';
+            } else {
+                badge.classList.add('status-genuine');
+                badge.innerText = '🟢 GENUINE';
+            }
+            badge.style.display = 'inline-block';
+        }
+
         function updateIntelDisplay() {
             const container = document.getElementById('intelContainer');
-            let html = '';
+
+            // Persist the header
+            let statusHTML = '';
+            const existingStatus = container.querySelector('div[style*="border-bottom"]');
+            if (existingStatus) statusHTML = existingStatus.outerHTML;
+
+            let html = statusHTML;
             let hasIntel = false;
 
             const labels = {
@@ -479,10 +573,11 @@
             }
 
             if (!hasIntel) {
-                container.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No intelligence gathered yet.</div>`;
-            } else {
-                container.innerHTML = html;
+                // If we have status, show it, but add the 'no data' text below
+                html += `<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No specific data points extracted yet.</div>`;
             }
+
+            container.innerHTML = html;
         }
 
         // --- Visualization Logic ---

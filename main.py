@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from models import HoneypotRequest, HoneypotResponse
-from detection import is_scam
+from detection import analyze_message
 from agent import generate_agent_response
 from extraction import extract_intelligence_from_message
 from session_manager import session_manager
@@ -86,25 +86,37 @@ async def honeypot_endpoint(
         # Add current message to conversation history (for detection)
         full_history = request.conversationHistory + [request.message]
         
-        # Detect if message is a scam
-        scam_detected, keywords = is_scam(request.message, full_history)
+        # Detect scam / analyze message
+        # Pass current session confidence score to allow cumulative tracking/escalation
+        current_score = session.confidenceScore
+        new_score, classification, keywords = analyze_message(request.message, full_history, current_score)
         
         # Extract intelligence from message first so agent knows what we have
         new_intelligence = extract_intelligence_from_message(request.message)
         
         # Update session with new data immediately
+        # Note: We update confidence and classification
         session = session_manager.update_session(
             request.sessionId,
             new_message=request.message,
-            scam_detected=scam_detected or session.scamDetected,
+            scam_detected=(classification == "scammer"),
             intelligence=new_intelligence,
-            agent_notes=f"Keywords detected: {', '.join(keywords[:5])}" if keywords else None
+            agent_notes=f"Keywords: {', '.join(keywords[:5])}" if keywords else None,
+            confidence_score=new_score,
+            classification=classification
         )
         
-        # Use AI agent to generate response (now aware of collected intel)
-        # Convert Pydantic model to dict for the agent function
+        # Use AI agent to generate response (now aware of collected intel and classification)
         current_intel_dict = session.extractedIntelligence.model_dump()
-        agent_data = generate_agent_response(request.message, full_history, current_intel_dict)
+        
+        # Pass the new classification and score to the agent
+        agent_data = generate_agent_response(
+            request.message, 
+            full_history, 
+            current_intel_dict, 
+            classification=classification, 
+            confidence_score=new_score
+        )
         
         agent_reply = agent_data.get("reply", "I am confused.")
         agent_scam_detected = agent_data.get("scamDetected", False)
@@ -122,11 +134,15 @@ async def honeypot_endpoint(
             current_list = getattr(new_intelligence, field)
             ai_list = getattr(ai_intel_model, field)
             setattr(new_intelligence, field, list(set(current_list + ai_list)))
+            
+        # Update keywords if any found by detection
+        if keywords:
+            new_intelligence.suspiciousKeywords = list(set(new_intelligence.suspiciousKeywords + keywords))
 
         # Update session AGAIN with AI insights
         session = session_manager.update_session(
             request.sessionId,
-            scam_detected=scam_detected or session.scamDetected or agent_scam_detected,
+            scam_detected=(classification == "scammer") or agent_scam_detected,
             intelligence=new_intelligence,
             agent_notes=agent_notes
         )
@@ -144,17 +160,20 @@ async def honeypot_endpoint(
         )
         
         # Check if callback should be sent (only if scam confirmed)
-        if session.scamDetected:
-            try_send_callback(session, session_manager)
+        if session.scamDetected and not session.callbackSent:
+             # Basic logic to prevent callback spam, handled inside try_send_callback too
+             try_send_callback(session, session_manager)
         
-        # Return response
+        # Return response including new metrics
         return HoneypotResponse(
             status="success",
             reply=agent_reply,
             scamDetected=session.scamDetected,
             intelligence=new_intelligence.model_dump(),
             sessionId=request.sessionId,
-            currentGoal=agent_goal
+            currentGoal=agent_goal,
+            confidenceScore=new_score,
+            classification=classification
         )
             
     except Exception as e:

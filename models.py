@@ -44,6 +44,8 @@ class HoneypotResponse(BaseModel):
     sessionId: str
     intelligence: ExtractedIntelligence = Field(default_factory=ExtractedIntelligence)
     currentGoal: Optional[str] = None
+    confidenceScore: float = 0.0
+    classification: Literal["genuine", "suspicious", "scammer"] = "genuine"
 
 
 class CallbackPayload(BaseModel):
@@ -53,6 +55,8 @@ class CallbackPayload(BaseModel):
     totalMessagesExchanged: int
     extractedIntelligence: ExtractedIntelligence
     agentNotes: str
+    confidenceScore: float
+    classification: str
 
 
 class SessionData(BaseModel):
@@ -64,3 +68,5 @@ class SessionData(BaseModel):
     conversationHistory: List[Message] = Field(default_factory=list)
     extractedIntelligence: ExtractedIntelligence = Field(default_factory=ExtractedIntelligence)
     agentNotes: str = ""
+    confidenceScore: float = 0.0
+    classification: Literal["genuine", "suspicious", "scammer"] = "genuine"
