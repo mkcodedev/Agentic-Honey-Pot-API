@@ -165,24 +165,38 @@ def detect_red_flags(text: str) -> List[str]:
 # Optional LLM layer
 # ─────────────────────────────────────────────
 
+def _gemini_generate(prompt: str) -> str:
+    """Call Gemini REST API directly using requests — no SDK, no dependency conflicts."""
+    import requests as _req
+    api_key = os.getenv("LLM_API_KEY", "")
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.0-flash:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 256},
+    }
+    resp = _req.post(url, json=payload, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
 def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[bool, str]:
-    """Google Gemini LLM-based scam detection (fallback to False if unavailable)"""
+    """Google Gemini LLM-based scam detection via direct REST API (no SDK required)."""
     llm_provider = os.getenv("LLM_PROVIDER", "").lower()
-    llm_api_key = os.getenv("LLM_API_KEY", "")
+    llm_api_key  = os.getenv("LLM_API_KEY", "")
 
     if llm_provider != "gemini" or not llm_api_key:
         return False, "LLM not configured"
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=llm_api_key)
-        model = genai.GenerativeModel("gemini-pro")
-
         context = "\n".join(
             f"{msg.sender}: {msg.text}" for msg in conversation_history[-5:]
         )
 
-        prompt = f"""You are an expert scam detection AI. Analyze the following conversation context and latest message.
+        prompt = f"""You are an expert scam detection AI. Analyze the conversation and latest message.
 
 Conversation context:
 {context}
@@ -197,19 +211,18 @@ Is this a scam attempt? Consider:
 - Promises of prizes, refunds, or cashbacks
 - Threats of account suspension, arrest, legal action
 - Suspicious links or unusual payment requests
-- Requests for personal/financial information
 
 Respond ONLY as: YES|<brief reason> or NO|<brief reason>"""
 
-        response = model.generate_content(prompt)
-        result = response.text.strip()
-        is_scam = result.upper().startswith("YES")
+        result = _gemini_generate(prompt)
+        is_scam_flag = result.upper().startswith("YES")
         reason = result.split("|", 1)[1].strip() if "|" in result else result
-        return is_scam, reason
+        return is_scam_flag, reason
 
     except Exception as e:
         print(f"LLM detection error: {e}")
         return False, str(e)
+
 
 
 # ─────────────────────────────────────────────

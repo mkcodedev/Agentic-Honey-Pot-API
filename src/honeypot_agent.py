@@ -196,19 +196,23 @@ def build_llm_response(
         return build_rule_based_response(message, turn, scam_type)
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=llm_api_key)
-        model = genai.GenerativeModel("gemini-pro")
+        import requests as _req
 
-        # Decide strategy
+        api_key = llm_api_key
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.0-flash:generateContent?key={api_key}"
+        )
+
+        # Decide strategy based on turn
         if turn <= 2:
-            strategy = "Be very confused and ask for basic clarification. Don't share any info. Ask who they are and what happened."
+            strategy = "Be very confused. Ask who they are and what department they're calling from."
         elif turn <= 4:
             strategy = "Be cooperative but ask investigative questions. Request employee ID, official phone number, branch address."
         elif turn <= 6:
-            strategy = "Stall for time. Say you're looking for something. Ask for their full name, supervisor name, and official website."
+            strategy = "Stall for time. Say you need to find your passbook. Ask for their full name, supervisor name, and official website."
         else:
-            strategy = "Ask aggressive investigative questions. Reference red flags like urgency. Ask for case reference number and their official email. Express doubts about legitimacy."
+            strategy = "Ask aggressive investigative questions. Reference red flags like urgency pressure. Ask for case reference number and their official email. Express suspicion politely."
 
         # Build context
         context = "\n".join(
@@ -216,20 +220,15 @@ def build_llm_response(
             for m in conversation_history[-8:]
         )
 
-        flags_note = ""
-        if red_flags:
-            flags_note = f"\nRed flags in their message: {', '.join(red_flags)}"
-
-        scam_note = f"\nThis appears to be a {scam_type} scam." if scam_type else ""
+        flags_note = f"\nRed flags detected: {', '.join(red_flags)}" if red_flags else ""
+        scam_note  = f"\nThis appears to be a {scam_type} scam." if scam_type else ""
 
         prompt = f"""You are roleplaying as Mr. Sharma, a 68-year-old retired school teacher being targeted by a scammer.
 
-YOUR JOB: Act as a honeypot — keep the scammer engaged as long as possible, extract their contact details, 
-phone numbers, UPI IDs, bank accounts, and any links they share. DO NOT reveal you know it's a scam.
+YOUR JOB: Act as a honeypot — keep the scammer engaged as long as possible, extract their contact details, phone numbers, UPI IDs, bank accounts, and any links they share. DO NOT reveal you know it's a scam.
 
 PERSONA: Slightly confused, not tech-savvy, cooperative but asks many questions, speaks simple English sometimes mixing in Hindi words.
-{scam_note}
-{flags_note}
+{scam_note}{flags_note}
 
 CONVERSATION SO FAR:
 {context}
@@ -248,8 +247,14 @@ RULES:
 
 Respond as Mr. Sharma ONLY — no explanations, no meta-commentary:"""
 
-        response = model.generate_content(prompt)
-        reply = response.text.strip()
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.8, "maxOutputTokens": 150},
+        }
+        resp = _req.post(url, json=payload, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
         # Ensure it's not empty
         if not reply:
