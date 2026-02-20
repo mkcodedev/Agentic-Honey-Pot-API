@@ -60,9 +60,10 @@ def extract_upi_ids(text: str) -> Set[str]:
 
     # 2) Generic catch-all: name@singleword where the domain has NO dots
     #    (UPI handles never have dots — emails always do e.g. gmail.com)
-    for m in re.findall(r'[\w.\-]+@([A-Za-z]+)(?=\s|$|[^a-zA-Z0-9\-_])', text):
+    #    Negative lookahead ensures we skip "gmail" in "gmail.com" etc.
+    for m in re.findall(r'[\w.\-]+@([A-Za-z]+)(?!\.[a-zA-Z]{2,})(?=\s|$|[^a-zA-Z0-9\-_.])', text):
         # m is just the handle part — get the full match
-        full = re.search(r'([\w.\-]+@' + re.escape(m) + r')(?=\s|$|[^a-zA-Z0-9\-_])', text)
+        full = re.search(r'([\w.\-]+@' + re.escape(m) + r')(?!\.[a-zA-Z]{2,})(?=\s|$|[^a-zA-Z0-9\-_.])', text)
         if full and '.' not in m:  # no TLD = not an email
             found.add(full.group(1))
 
@@ -116,14 +117,17 @@ def extract_case_ids(text: str) -> Set[str]:
     """Extract case / reference / ticket IDs (alphanumeric patterns)"""
     found = set()
 
-    # Patterns like SBI-12345, CASE-987654, REF-ABC123, TICKET-001
+    # Pattern: keyword + optional filler (id/no/number/is) + separator + value
+    # Value must contain at least one digit to avoid capturing plain English words.
     for m in re.findall(
-        r'\b(?:case|ref|reference|ticket|id|no|number|case#|ref#)[:\s#\-]*([A-Z0-9\-]{5,15})\b',
+        r'\b(?:case|ref|ticket)(?:\s+(?:id|no|number|reference|#))?\s*[:\-#]?\s*([A-Z]{1,8}[-/]?\d{3,15})\b',
         text, re.IGNORECASE
     ):
-        found.add(m.upper())
+        val = m.upper()
+        if any(c.isdigit() for c in val):
+            found.add(val)
 
-    # Standalone alphanumeric IDs  e.g. SBI-12345, HDFC/9876
+    # Standalone format: 2-6 capital letters + hyphen/slash + 4-10 digits  e.g. SBI-12345
     for m in re.findall(r'\b[A-Z]{2,6}[-/]\d{4,10}\b', text):
         found.add(m)
 
@@ -133,22 +137,28 @@ def extract_case_ids(text: str) -> Set[str]:
 def extract_policy_numbers(text: str) -> Set[str]:
     """Extract insurance / policy numbers"""
     found = set()
+    # Handle "policy code POL-GOLD-999" or "policy: POL-123"
     for m in re.findall(
-        r'\b(?:policy|pol)[:\s#\-]*([A-Z0-9\-]{6,20})\b',
+        r'\b(?:policy|pol)(?:\s+(?:code|no|number|id))?\s*[:\-#]?\s*([A-Z][A-Z0-9\-]{5,19})\b',
         text, re.IGNORECASE
     ):
-        found.add(m.upper())
+        val = m.upper()
+        if any(c.isdigit() for c in val):
+            found.add(val)
     return found
 
 
 def extract_order_numbers(text: str) -> Set[str]:
     """Extract order / transaction IDs"""
     found = set()
+    # Handle "order ID ORD-789456", "order is ORD-xxx", "order ID is ORD-xxx", "txn: TXN123456"
     for m in re.findall(
-        r'\b(?:order|txn|transaction|trx)[:\s#\-]*([A-Z0-9\-]{6,20})\b',
+        r'\b(?:order|txn|transaction|trx)(?:\s+(?:id|no|number|is)){0,2}\s*[:\-#]?\s*([A-Z][A-Z0-9\-]{5,19})\b',
         text, re.IGNORECASE
     ):
-        found.add(m.upper())
+        val = m.upper()
+        if any(c.isdigit() for c in val):
+            found.add(val)
     return found
 
 

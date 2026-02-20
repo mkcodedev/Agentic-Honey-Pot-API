@@ -167,9 +167,28 @@ async def honeypot_endpoint(
 
             # Count elicitation attempts (reply asks for identifying info)
             elicitation_keywords = [
-                "employee id", "phone number", "official number", "your name",
-                "branch address", "supervisor", "case number", "reference number",
-                "official website", "callback number", "email", "department name"
+                # Identity
+                "employee id", "your id", "employee code", "your employee",
+                "your name", "full name",
+                # Contact
+                "phone number", "official number", "official phone",
+                "callback number", "contact number", "direct number",
+                "call you back", "your direct", "your official",
+                # Location / Address
+                "branch address", "your address", "registered address",
+                "which branch", "which office", "department address",
+                "bank branch", "calling from", "come to the branch",
+                # Identity verification
+                "supervisor", "your manager", "case number",
+                "reference number", "case reference", "your department",
+                "department name", "company name", "registration number",
+                # Online
+                "official website", "official email", "your email",
+                "email", "official domain",
+                # Probing questions that appear in templates
+                "verify you are", "can you give me", "can you share",
+                "what is your", "please confirm", "send an official",
+                "sending money", "your employee",
             ]
             is_elicitation = any(kw in agent_reply.lower() for kw in elicitation_keywords)
 

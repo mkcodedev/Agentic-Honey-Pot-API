@@ -98,6 +98,30 @@ SCAM_TYPE_PROBES = {
         "Can you send the official winning certificate by post first?",
         "What is the lottery company's registered address?",
     ],
+    "insurance_fraud": [
+        "Can you share your official policy document number and company registration?",
+        "Which IRDA-registered company are you calling from exactly?",
+        "I have not received any written notice. Can you send it by post first?",
+        "What is the claim reference number and your employee code?",
+    ],
+    "tax_fraud": [
+        "Can you give me the official Income Tax Department case reference number?",
+        "Which tax circle and ward is this notice from?",
+        "I will visit the tax office directly — what is the address?",
+        "Can you send the demand notice on official letterhead to my email?",
+    ],
+    "customs_fraud": [
+        "What is the tracking number of this parcel? Who sent it?",
+        "Which customs office is holding it and what is their official number?",
+        "Can I pay the customs duty directly at the office counter?",
+        "What is the official customs receipt ID for this case?",
+    ],
+    "job_fraud": [
+        "What is the company registration number and official website?",
+        "Can you email me the official offer letter from a company email address?",
+        "What is the HR manager's full name and contact number?",
+        "Why do I need to pay anything before joining? That seems unusual.",
+    ],
 }
 
 
@@ -141,6 +165,11 @@ def build_rule_based_response(
         # Ask a relevant question based on content
         if any(w in text_lower for w in ["link", "click", "url", "website", "http"]):
             parts.append(random.choice(LINK_SKEPTIC))
+            # Always follow link skepticism with an elicitation probe
+            if scam_type and scam_type in SCAM_TYPE_PROBES:
+                parts.append(random.choice(SCAM_TYPE_PROBES[scam_type]))
+            else:
+                parts.append(random.choice(ELICITATION_QUESTIONS))
         elif any(w in text_lower for w in ["phone", "number", "call", "contact"]):
             parts.append(random.choice(PHONE_PROBING))
         elif scam_type and scam_type in SCAM_TYPE_PROBES:
@@ -149,12 +178,16 @@ def build_rule_based_response(
             parts.append(random.choice(ELICITATION_QUESTIONS))
 
     elif strategy == "stalling_with_elicitation":
-        parts.append(random.choice(STALLING_RESPONSES))
-        # Reference a red flag
-        if any(w in text_lower for w in ["urgent", "quickly", "fast", "immediately", "asap"]):
+        # Reference a red flag or use link skepticism based on content
+        if any(w in text_lower for w in ["link", "click", "url", "website", "http"]):
+            parts.append(random.choice(LINK_SKEPTIC))
+        elif any(w in text_lower for w in ["urgent", "quickly", "fast", "immediately", "asap"]):
+            parts.append(random.choice(STALLING_RESPONSES))
             parts.append(random.choice(RED_FLAG_CALLOUTS))
         else:
-            parts.append(random.choice(ELICITATION_QUESTIONS))
+            parts.append(random.choice(STALLING_RESPONSES))
+        # Always append an elicitation question
+        parts.append(random.choice(ELICITATION_QUESTIONS))
 
     else:  # deep_probing
         # Mix of red flag callout + deep probe
@@ -168,11 +201,9 @@ def build_rule_based_response(
             parts.append("Wait, you want me to send money? Real officials never ask for fees upfront!")
             parts.append(random.choice(PHONE_PROBING))
         else:
+            # Always elicit — ask for identifying information
             parts.append(random.choice(COOPERATIVE_RESPONSES))
-            if scam_type and scam_type in SCAM_TYPE_PROBES:
-                parts.append(random.choice(SCAM_TYPE_PROBES[scam_type]))
-            else:
-                parts.append(random.choice(ELICITATION_QUESTIONS))
+            parts.append(random.choice(ELICITATION_QUESTIONS))
 
     return " ".join(parts)
 

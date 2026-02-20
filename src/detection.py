@@ -65,7 +65,10 @@ SCAM_TYPE_PATTERNS = {
     ],
     "phishing": [
         "click the link", "click here", "visit", "http://", "https://",
-        "login", "update your details", "verify your account via link"
+        "login", "update your details", "verify your account via link",
+        "special offer", "limited stock", "bit.ly", "tinyurl",
+        "deals", "discount", "fake-site", "amaz0n", "flipkart",
+        "track your", "delivery", "parcel", "order confirmed"
     ],
     "lottery_fraud": [
         "congratulations", "won", "prize", "lottery", "lucky draw",
@@ -78,7 +81,8 @@ SCAM_TYPE_PATTERNS = {
         "customs", "parcel", "package", "delivery", "declaration fee"
     ],
     "insurance_fraud": [
-        "policy", "insurance", "premium", "claim", "lic", "irda"
+        "policy number", "insurance policy", "premium due", "claim settlement",
+        "lic policy", "irda", "life insurance"
     ],
     "job_fraud": [
         "job offer", "work from home", "part time", "earn money",
@@ -141,22 +145,55 @@ def detect_red_flags(text: str) -> List[str]:
     t = text.lower()
     flags = []
 
-    if any(w in t for w in ["urgent", "immediately", "asap", "hurry", "act fast"]):
+    if any(w in t for w in ["urgent", "immediately", "asap", "hurry", "act fast",
+                              "offer ends", "limited time", "expires today",
+                              "last chance", "limited stock", "today only"]):
         flags.append("urgency_pressure")
+
     if any(w in t for w in ["otp", "one time password"]):
         flags.append("otp_request")
-    if any(w in t for w in ["send money", "transfer", "pay now", "deposit"]):
+
+    if any(w in t for w in ["send money", "transfer", "pay now", "deposit",
+                              "verification fee", "processing fee", "small amount",
+                              "send rs", "send ₹"]):
         flags.append("money_transfer_request")
+
     if any(w in t for w in ["arrest", "warrant", "legal action", "court", "jail"]):
         flags.append("threat_legal_action")
+
     if re.search(r'https?://\S+|www\.\S+', text):
         flags.append("suspicious_link")
-    if any(w in t for w in ["pin", "cvv", "password", "account number", "card number"]):
+        # Extra flag if URL looks typosquatted (numbers replacing letters)
+        urls = re.findall(r'https?://\S+|www\.\S+', text)
+        for url in urls:
+            if re.search(r'[0-9][a-z]|[a-z][0-9]', url.split('/')[2] if '/' in url else url):
+                if "suspicious_url_typosquat" not in flags:
+                    flags.append("suspicious_url_typosquat")
+
+    if any(w in t for w in ["pin", "cvv", "password", "account number", "card number",
+                              "upi pin", "atm pin"]):
         flags.append("sensitive_info_request")
-    if any(w in t for w in ["rbi", "income tax", "police", "government", "bank official"]):
+
+    if any(w in t for w in ["rbi", "income tax", "police", "government", "bank official",
+                              "fraud department", "sebi", "trai"]):
         flags.append("authority_impersonation")
-    if any(w in t for w in ["won", "prize", "lottery", "congratulations", "cashback", "refund"]):
+
+    if any(w in t for w in ["won", "prize", "lottery", "congratulations", "cashback",
+                              "refund", "lucky draw", "selected customer", "lucky winner"]):
         flags.append("unrealistic_reward")
+
+    # Too-good-to-be-true pricing  (e.g. iPhone 15 at Rs.999)
+    if re.search(r'(?:rs\.?\s*|₹\s*)(?:[1-9]\d{0,3})\b', t):
+        costly_items = ["iphone", "samsung", "laptop", "tv", "bike", "car", "gold",
+                        "macbook", "ipad", "airpods"]
+        if any(item in t for item in costly_items):
+            flags.append("too_good_to_be_true")
+
+    # Advance fee: pay to receive reward
+    if any(w in t for w in ["verification amount", "registration fee", "processing charge",
+                              "small fee", "token amount", "advance"]):
+        if any(w in t for w in ["prize", "reward", "cashback", "refund", "lottery", "won"]):
+            flags.append("advance_fee_fraud")
 
     return flags
 
