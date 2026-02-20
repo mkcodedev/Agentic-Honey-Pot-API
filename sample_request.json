@@ -1,0 +1,25 @@
+{
+  "sessionId": "demo-session-001",
+  "message": {
+    "sender": "scammer",
+    "text": "URGENT! Your bank account has been suspended due to suspicious activity. Please verify your account immediately by calling us at +919876543210 or click this link: http://fake-bank-verify.com/urgent",
+    "timestamp": 1770005528731
+  },
+  "conversationHistory": [
+    {
+      "sender": "scammer",
+      "text": "Hello, this is from State Bank of India security department.",
+      "timestamp": 1770005528730
+    },
+    {
+      "sender": "user",
+      "text": "Hi, what is this about?",
+      "timestamp": 1770005528731
+    }
+  ],
+  "metadata": {
+    "channel": "SMS",
+    "language": "English",
+    "locale": "IN"
+  }
+}

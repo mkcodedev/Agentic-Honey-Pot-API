@@ -1,0 +1,23 @@
+# FastAPI and server
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# HTTP requests (for callback)
+requests==2.31.0
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Data validation
+pydantic==2.4.2
+
+# Google Gemini AI (for LLM-based detection and response generation)
+google-generativeai==0.3.2
+
+# Supporting dependencies
+python-multipart==0.0.6
+annotated-types==0.6.0
+typing-extensions==4.8.0
+starlette==0.27.0
+anyio==3.7.1
+httpx==0.25.0
