@@ -166,7 +166,7 @@ def detect_red_flags(text: str) -> List[str]:
 # ─────────────────────────────────────────────
 
 def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[bool, str]:
-    """Google Gemini LLM-based scam detection (uses new google-genai SDK)"""
+    """Google Gemini LLM-based scam detection (fallback to False if unavailable)"""
     llm_provider = os.getenv("LLM_PROVIDER", "").lower()
     llm_api_key = os.getenv("LLM_API_KEY", "")
 
@@ -174,8 +174,9 @@ def detect_scam_llm(text: str, conversation_history: List[Message]) -> Tuple[boo
         return False, "LLM not configured"
 
     try:
-        from google import genai
-        client = genai.Client(api_key=llm_api_key)
+        import google.generativeai as genai
+        genai.configure(api_key=llm_api_key)
+        model = genai.GenerativeModel("gemini-pro")
 
         context = "\n".join(
             f"{msg.sender}: {msg.text}" for msg in conversation_history[-5:]
@@ -200,10 +201,7 @@ Is this a scam attempt? Consider:
 
 Respond ONLY as: YES|<brief reason> or NO|<brief reason>"""
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-        )
+        response = model.generate_content(prompt)
         result = response.text.strip()
         is_scam = result.upper().startswith("YES")
         reason = result.split("|", 1)[1].strip() if "|" in result else result

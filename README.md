@@ -301,6 +301,8 @@ python test_api.py
 **Build Command:** `pip install -r requirements.txt`
 **Start Command:** `uvicorn src.main:app --host 0.0.0.0 --port $PORT`
 
+> **Live Deployment:** `https://agentic-honey-pot.up.railway.app`
+
 ### Docker
 
 ```bash

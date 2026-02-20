@@ -29,8 +29,16 @@ from session_manager import session_manager
 from callback import try_send_callback, force_send_callback, build_final_output
 
 # ─── Load env ────────────────────────────────────────────────────────────────
+# Try .env in project root (parent of src/) first, then cwd, then system env
 
-load_dotenv()
+_HERE     = os.path.dirname(os.path.abspath(__file__))   # src/
+_ROOT     = os.path.dirname(_HERE)                        # project root
+_ENV_PATH = os.path.join(_ROOT, ".env")
+
+if os.path.exists(_ENV_PATH):
+    load_dotenv(_ENV_PATH, override=True)
+else:
+    load_dotenv(override=True)   # fallback: search cwd / parent dirs
 
 HONEYPOT_API_KEY = os.getenv("HONEYPOT_API_KEY", "default-secret-key-change-me")
 
