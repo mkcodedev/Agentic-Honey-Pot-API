@@ -195,6 +195,37 @@ def detect_red_flags(text: str) -> List[str]:
         if any(w in t for w in ["prize", "reward", "cashback", "refund", "lottery", "won"]):
             flags.append("advance_fee_fraud")
 
+    # Brand impersonation: typosquatted brand names in URLs or suspicious brand domains
+    brand_patterns = [
+        r'amaz[0o]n', r'flipk[a4]rt', r'ph[o0]nep[e3]', r'p[a4]ytm',
+        r'g[o0]{2}gle', r'[a4]pp[l1]e', r'y[a4]h[o0]{2}', r'micr[o0]s[o0]ft',
+    ]
+    urls_in_text = re.findall(r'https?://[^\s]+|www\.[^\s]+', text)
+    url_text = ' '.join(urls_in_text)
+    # Check typosquatted brands in URLs
+    if url_text and any(re.search(p, url_text, re.IGNORECASE) for p in brand_patterns):
+        if "brand_impersonation" not in flags:
+            flags.append("brand_impersonation")
+    # Check for "fake-brand" or "brand-fake" patterns in URLs
+    if re.search(r'fake[-.]|[-.]fake|phish|scam[-.]|[-.]scam', url_text, re.IGNORECASE):
+        if "brand_impersonation" not in flags:
+            flags.append("brand_impersonation")
+    # Check suspicious email domains (e.g. offers@fake-amazon-deals.com)
+    emails_in_text = re.findall(r'[\w.+-]+@[\w.-]+\.\w+', text)
+    for email in emails_in_text:
+        domain = email.split('@', 1)[1].lower()
+        if any(re.search(p, domain, re.IGNORECASE) for p in brand_patterns):
+            if "brand_impersonation" not in flags:
+                flags.append("brand_impersonation")
+        if re.search(r'fake|phish|scam', domain, re.IGNORECASE):
+            if "brand_impersonation" not in flags:
+                flags.append("brand_impersonation")
+
+    # Identity/impersonation claim: scammer claims to be from a known org
+    if re.search(r'\b(?:from|calling from|this is|i am|i\'m)\b.{0,30}\b(?:amazon|flipkart|phonepe|paytm|google|apple|hdfc|sbi|icici|rbi|irs|income.?tax)\b', t):
+        if "brand_impersonation" not in flags:
+            flags.append("brand_impersonation")
+
     return flags
 
 
