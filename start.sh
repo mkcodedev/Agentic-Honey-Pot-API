@@ -33,4 +33,4 @@ echo ""
 # Run the server
 echo "Starting FastAPI server..."
 echo ""
-python main.py
+python src/main.py
