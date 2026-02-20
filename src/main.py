@@ -311,23 +311,5 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
-
-    port = int(os.getenv("PORT", 8000))
-
-    print(f"""
-╔══════════════════════════════════════════════════╗
-║        Agentic Honey-Pot API  v2.0.0             ║
-╠══════════════════════════════════════════════════╣
-║  Server  : http://0.0.0.0:{port:<5}                  ║
-║  Docs    : http://0.0.0.0:{port:<5}/docs              ║
-║  Health  : http://0.0.0.0:{port:<5}/health            ║
-╚══════════════════════════════════════════════════╝
-""")
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,  # disable reload in production
-        log_level="info",
-    )
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
