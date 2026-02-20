@@ -196,9 +196,8 @@ def build_llm_response(
         return build_rule_based_response(message, turn, scam_type)
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=llm_api_key)
-        model = genai.GenerativeModel("gemini-pro")
+        from google import genai
+        client = genai.Client(api_key=llm_api_key)
 
         # Decide strategy
         if turn <= 2:
@@ -248,7 +247,10 @@ RULES:
 
 Respond as Mr. Sharma ONLY — no explanations, no meta-commentary:"""
 
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
         reply = response.text.strip()
 
         # Ensure it's not empty
