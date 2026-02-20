@@ -9,3 +9,6 @@ cmds = [
 
 [phases.build]
 cmds = []
+
+[start]
+cmd = "python src/main.py"

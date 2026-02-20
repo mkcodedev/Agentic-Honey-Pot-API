@@ -42,26 +42,38 @@ def extract_bank_accounts(text: str) -> Set[str]:
 
 
 def extract_upi_ids(text: str) -> Set[str]:
-    """Extract UPI IDs in the format name@handle"""
+    """Extract UPI IDs in the format name@handle (NOT email addresses with TLDs)"""
     upi_handles = [
         'paytm', 'phonepe', 'gpay', 'googlepay', 'ybl', 'upi', 'okaxis',
         'okhdfcbank', 'okicici', 'oksbi', 'ikwik', 'airtel', 'freecharge',
         'ibl', 'hdfc', 'icici', 'sbi', 'axis', 'kotak', 'indus', 'rbl',
         'yes', 'pnb', 'bob', 'cnrb', 'federal', 'idbi', 'aubank',
-        'fakebank', 'fakeupi', 'fake',  # evaluation placeholders
+        'fakebank', 'fakeupi',  # evaluation placeholders (NOT 'fake' alone — too broad)
     ]
-    pattern = r'\b[\w.\-]+@(?:' + '|'.join(upi_handles) + r')\b'
+
+    found: Set[str] = set()
+
+    # 1) Match known UPI handles exactly
+    pattern = r'[\w.\-]+@(?:' + '|'.join(upi_handles) + r')(?=\s|$|[^a-zA-Z0-9\-_])'
     for m in re.findall(pattern, text, re.IGNORECASE):
-        text_found = set()
-        text_found.add(m.lower())
-        found = text_found
-    # Also generic email-looking strings that contain common UPI handles
-    generic = re.findall(r'\b[\w.\-]+@[\w.\-]+\b', text)
-    found = set(re.findall(pattern, text, re.IGNORECASE))
-    for g in generic:
-        if any(h in g.lower() for h in upi_handles):
-            found.add(g)
-    return found
+        found.add(m)
+
+    # 2) Generic catch-all: name@singleword where the domain has NO dots
+    #    (UPI handles never have dots — emails always do e.g. gmail.com)
+    for m in re.findall(r'[\w.\-]+@([A-Za-z]+)(?=\s|$|[^a-zA-Z0-9\-_])', text):
+        # m is just the handle part — get the full match
+        full = re.search(r'([\w.\-]+@' + re.escape(m) + r')(?=\s|$|[^a-zA-Z0-9\-_])', text)
+        if full and '.' not in m:  # no TLD = not an email
+            found.add(full.group(1))
+
+    # 3) Final guard: discard any item whose domain part contains a dot (= email)
+    result: Set[str] = set()
+    for item in found:
+        parts = item.split('@')
+        if len(parts) == 2 and '.' not in parts[1]:
+            result.add(item)
+
+    return result
 
 
 def extract_emails(text: str) -> Set[str]:
